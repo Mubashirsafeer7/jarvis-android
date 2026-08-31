@@ -47,40 +47,48 @@ jobs:
       - name: Build debug APK
         run: ./gradlew assembleDebug --no-daemon
 
+      # Upload before the alignment check so a problem there still leaves an
+      # installable APK to look at.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: REMOVED-OLD-KEYSTORE-PASSWORD-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
       # Android 15+ devices (the realme 15 among them) use 16 KB memory pages.
       # A shared library linked for 4 KB pages will not load there at all, so
-      # fail here rather than on the phone. This covers every .so in the APK,
-      # including ones dependencies bring in — those break the app just as hard.
+      # report it here rather than on the phone. Every .so in the APK counts,
+      # including ones dependencies bring in.
       - name: Check native libraries are 16 KB aligned
         run: |
-          set -euo pipefail
+          set -uo pipefail
 
-          # -print -quit rather than `| head -1`: under pipefail, head closing
-          # the pipe can make find exit 141 and take the step down with it.
           apk=$(find app/build/outputs/apk/debug -name '*.apk' -print -quit)
           if [ -z "$apk" ]; then
             echo "::error::No APK was produced."
             exit 1
           fi
+          echo "APK: $apk ($(du -h "$apk" | cut -f1))"
           rm -rf /tmp/apkcheck && mkdir -p /tmp/apkcheck
-          unzip -o -q "$apk" -d /tmp/apkcheck
+          unzip -o -q "$apk" -d /tmp/apkcheck || {
+            echo "::error::unzip failed with $?"
+            exit 1
+          }
 
           libs=$(find /tmp/apkcheck/lib -name '*.so' -print 2>/dev/null || true)
           if [ -z "$libs" ]; then
             echo "::error::No native libraries in the APK — llama.cpp did not build."
             exit 1
           fi
+          echo "Found $(printf '%s\n' "$libs" | wc -l) native libraries"
 
-          # The NDK's readelf if the NDK is installed, otherwise whatever the
-          # runner has. Looking inside a directory that may not exist is what
-          # broke this check the first time.
           readelf=""
-          if [ -d "${ANDROID_HOME:-}/ndk" ]; then
-            readelf=$(find "$ANDROID_HOME/ndk" -name 'llvm-readelf' -print -quit || true)
-          fi
-          if [ -z "$readelf" ]; then
-            readelf=$(command -v llvm-readelf || command -v readelf || true)
-          fi
+          for candidate in \
+            "${ANDROID_NDK_ROOT:-}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf" \
+            "$(command -v llvm-readelf || true)" \
+            "$(command -v readelf || true)"; do
+            if [ -n "$candidate" ] && [ -x "$candidate" ]; then readelf="$candidate"; break; fi
+          done
           if [ -z "$readelf" ]; then
             echo "::error::No readelf found to verify alignment."
             exit 1
@@ -88,17 +96,24 @@ jobs:
           echo "Using $readelf"
 
           fail=0
+          count=0
           while IFS= read -r so; do
-            align=$("$readelf" -l "$so" | awk '/LOAD/ {print $NF; exit}')
+            [ -n "$so" ] || continue
+            count=$((count + 1))
+            # Capture rather than pipe, and let awk read to EOF: a pipeline that
+            # closes early here is what made this step die mid-loop before.
+            if ! out=$("$readelf" -l "$so" 2>&1); then
+              echo "::error::readelf failed on $(basename "$so"): $out"
+              fail=1
+              continue
+            fi
+            align=$(printf '%s\n' "$out" | awk '/LOAD/ && !seen { print $NF; seen = 1 }')
             case "$align" in
               0x4000|0x10000) echo "ok    $align  $(basename "$so")" ;;
-              *) echo "::error::$(basename "$so") is aligned $align, needs 16 KB"; fail=1 ;;
+              *) echo "::error::$(basename "$so") is aligned ${align:-unknown}, needs 16 KB"
+                 fail=1 ;;
             esac
           done <<< "$libs"
-          exit $fail
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: REMOVED-OLD-KEYSTORE-PASSWORD-apk
-          path: app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
+          echo "Checked $count libraries; fail=$fail"
+          exit $fail
