@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # llama.cpp arrives as a submodule in Phase 1.
+          # llama.cpp is vendored as a submodule and compiled by the NDK.
           submodules: recursive
 
       - uses: actions/setup-java@v4
@@ -21,6 +21,12 @@ jobs:
           java-version: '17'
 
       - uses: gradle/actions/setup-gradle@v4
+
+      - name: Install NDK
+        run: |
+          ndk=$(sed -n 's/^ndk = "\(.*\)"/\1/p' gradle/libs.versions.toml)
+          echo "Installing NDK $ndk"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$ndk"
 
       - name: Unit tests
         run: ./gradlew testDebugUnitTest --no-daemon
@@ -33,8 +39,7 @@ jobs:
 
       # Android 15+ devices (the realme 15 among them) use 16 KB memory pages.
       # A native library linked for 4 KB pages will not load there at all, so
-      # fail the build here rather than on the phone. No-op until Phase 1 adds
-      # llama.cpp.
+      # fail the build here rather than on the phone.
       - name: Check native libraries are 16 KB aligned
         run: |
           set -euo pipefail
@@ -42,8 +47,8 @@ jobs:
           mkdir -p /tmp/apkcheck && unzip -o -q "$apk" -d /tmp/apkcheck
           libs=$(find /tmp/apkcheck/lib -name '*.so' 2>/dev/null || true)
           if [ -z "$libs" ]; then
-            echo "No native libraries in this build — nothing to check."
-            exit 0
+            echo "::error::No native libraries in the APK — llama.cpp did not build."
+            exit 1
           fi
           readelf=$(find "$ANDROID_HOME/ndk" -name 'llvm-readelf' | head -1)
           fail=0

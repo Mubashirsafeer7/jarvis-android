@@ -4,7 +4,7 @@ Ek personal assistant jo **poori tarah aapke phone ke andar** chalta hai.
 Koi API key nahi, koi cloud nahi, koi subscription nahi, koi rate limit nahi.
 Internet band ho tab bhi kaam karta hai.
 
-> **Status:** Phase 0 — app build hoti hai aur chalti hai. Dimaag aur awaaz aage aa rahe hain.
+> **Status:** Phase 1 — offline LLM chalta hai, text chat kaam karti hai. Awaaz aage aa rahi hai.
 
 ---
 
@@ -58,14 +58,30 @@ cd jarvis-android
 
 APK yahan milegi: `app/build/outputs/apk/debug/`
 
-Chahiye: JDK 17, Android SDK (compileSdk 36), aur Phase 1 ke baad NDK r27+.
+Chahiye: JDK 17, Android SDK (compileSdk 36), NDK 29 (llama.cpp compile karne ke liye).
+Pehli build mein llama.cpp compile hota hai — 15-25 minute lag sakte hain.
+
+---
+
+## Pehli baar chalane par
+
+1. App kholein → model list dikhegi, aapke phone ki RAM ke hisaab se
+2. **Get** dabayein — model download hoga (background mein, app band kar sakte hain)
+3. Download ke baad model khud load ho jayega
+4. Ab **airplane mode on karke** baat karein — proof ke sab kuch offline hai
+
+**Model download na ho to?** Link badal sakte hain. Koi bhi GGUF file phone par download
+karein (HuggingFace se) aur app mein **"GGUF file chunein"** se import kar lein — yeh rasta
+hamesha kaam karta hai.
+
+**Speed** button dabakar apne phone ka asli tokens/sec dekh sakte hain.
 
 ---
 
 ## Roadmap
 
 - [x] **Phase 0** — project scaffold, CI se APK build, device detect screen
-- [ ] **Phase 1** — llama.cpp + GGUF model, offline text chat
+- [x] **Phase 1** — llama.cpp + GGUF model, offline text chat
 - [ ] **Phase 2** — Vosk STT + TTS + "Jarvis" wake word + background service
 - [ ] **Phase 3** — call / SMS / app kholna / device control
 - [ ] **Phase 4** — location, calendar, notifications

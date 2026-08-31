@@ -22,3 +22,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Jarvis"
 include(":app")
+include(":llama")
