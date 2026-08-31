@@ -18,7 +18,11 @@ data class ModelSpec(
     val downloadUrl: String,
     /** For the free-space check and the download UI; the real size comes from the server. */
     val approxBytes: Long,
-    /** Physical RAM this needs. Virtual/swap RAM does not help a memory-mapped model. */
+    /**
+     * Physical RAM this needs — weights plus the KV cache plus whatever Android
+     * itself is holding, not just the file size. Virtual/swap RAM does not help
+     * a memory-mapped model.
+     */
     val minRamGb: Double,
     val notes: String,
 )
@@ -47,7 +51,9 @@ object ModelCatalog {
             downloadUrl = "https://huggingface.co/bartowski/Qwen2.5-3B-Instruct-GGUF/" +
                 "resolve/main/Qwen2.5-3B-Instruct-Q4_K_M.gguf?download=true",
             approxBytes = (2.0 * GB).toLong(),
-            minRamGb = 5.5,
+            // 2 GB of weights and an 8k KV cache leave nothing over on a 6 GB
+            // phone once Android has taken its share, so this needs 8 GB class.
+            minRamGb = 7.0,
             notes = "Rozana ke liye behtareen balance — tez bhi, samajhdar bhi.",
         ),
         ModelSpec(

@@ -31,6 +31,11 @@ class ModelCatalogTest {
     }
 
     @Test
+    fun `8GB phone gets the 3B model`() {
+        assertEquals("qwen2.5-3b-instruct-q4km", ModelCatalog.defaultFastFor(caps(7.6))?.id)
+    }
+
+    @Test
     fun `6GB phone falls back to the small model and cannot run 7B`() {
         assertEquals("qwen2.5-1.5b-instruct-q4km", ModelCatalog.defaultFastFor(caps(5.7))?.id)
         assertTrue(ModelCatalog.runnableOn(caps(5.7)).none { it.role == ModelRole.DEEP })
