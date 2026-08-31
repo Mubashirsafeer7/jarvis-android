@@ -1,0 +1,64 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # llama.cpp arrives as a submodule in Phase 1.
+          submodules: recursive
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Unit tests
+        run: ./gradlew testDebugUnitTest --no-daemon
+
+      - name: Lint
+        run: ./gradlew lintDebug --no-daemon
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --no-daemon
+
+      # Android 15+ devices (the realme 15 among them) use 16 KB memory pages.
+      # A native library linked for 4 KB pages will not load there at all, so
+      # fail the build here rather than on the phone. No-op until Phase 1 adds
+      # llama.cpp.
+      - name: Check native libraries are 16 KB aligned
+        run: |
+          set -euo pipefail
+          apk=$(find app/build/outputs/apk/debug -name '*.apk' | head -1)
+          mkdir -p /tmp/apkcheck && unzip -o -q "$apk" -d /tmp/apkcheck
+          libs=$(find /tmp/apkcheck/lib -name '*.so' 2>/dev/null || true)
+          if [ -z "$libs" ]; then
+            echo "No native libraries in this build — nothing to check."
+            exit 0
+          fi
+          readelf=$(find "$ANDROID_HOME/ndk" -name 'llvm-readelf' | head -1)
+          fail=0
+          for so in $libs; do
+            align=$("$readelf" -l "$so" | awk '/LOAD/ {print $NF; exit}')
+            echo "$so -> align $align"
+            case "$align" in
+              0x4000|0x10000) ;;
+              *) echo "::error::$so is not 16 KB aligned (align=$align)"; fail=1 ;;
+            esac
+          done
+          exit $fail
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: REMOVED-OLD-KEYSTORE-PASSWORD-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
