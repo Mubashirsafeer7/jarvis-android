@@ -27,7 +27,7 @@ Baat-cheet **Hinglish** mein — jaise aap normally baat karte hain.
 Primary target: **realme 15 (RMX5106)** — Dimensity 7300+, 12 GB RAM, Android 16.
 
 Chalega kisi bhi phone par jo:
-- **Android 8.0+** (API 26), **arm64** ho
+- **Android 11+** (API 30), **arm64** ho
 - **6 GB+ RAM** (8 GB+ behtar — bade model ke liye)
 - **~3 GB free storage** model file ke liye
 

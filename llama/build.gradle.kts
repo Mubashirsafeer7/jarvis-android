@@ -12,7 +12,10 @@ android {
     ndkVersion = libs.versions.ndk.get()
 
     defaultConfig {
-        minSdk = 26
+        // llama.cpp's Android logging header calls __android_log_is_loggable,
+        // which the NDK marks as introduced in API 30. Anything lower fails to
+        // compile rather than degrading at runtime.
+        minSdk = 30
         ndk { abiFilters += "arm64-v8a" }
 
         externalNativeBuild {
