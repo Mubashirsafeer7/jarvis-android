@@ -24,9 +24,19 @@ jobs:
 
       - name: Install NDK
         run: |
+          set -euo pipefail
           ndk=$(sed -n 's/^ndk = "\(.*\)"/\1/p' gradle/libs.versions.toml)
           echo "Installing NDK $ndk"
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$ndk"
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          # Without an accepted license sdkmanager skips the package and still
+          # exits 0, so accept first and then check the directory really exists.
+          yes | "$sdkmanager" --licenses > /dev/null 2>&1 || true
+          "$sdkmanager" --install "ndk;$ndk"
+          if [ ! -d "$ANDROID_HOME/ndk/$ndk" ]; then
+            echo "::error::NDK $ndk was not installed."
+            exit 1
+          fi
+          echo "NDK ready at $ANDROID_HOME/ndk/$ndk"
 
       - name: Unit tests
         run: ./gradlew testDebugUnitTest --no-daemon
@@ -38,28 +48,53 @@ jobs:
         run: ./gradlew assembleDebug --no-daemon
 
       # Android 15+ devices (the realme 15 among them) use 16 KB memory pages.
-      # A native library linked for 4 KB pages will not load there at all, so
-      # fail the build here rather than on the phone.
+      # A shared library linked for 4 KB pages will not load there at all, so
+      # fail here rather than on the phone. This covers every .so in the APK,
+      # including ones dependencies bring in — those break the app just as hard.
       - name: Check native libraries are 16 KB aligned
         run: |
           set -euo pipefail
-          apk=$(find app/build/outputs/apk/debug -name '*.apk' | head -1)
-          mkdir -p /tmp/apkcheck && unzip -o -q "$apk" -d /tmp/apkcheck
-          libs=$(find /tmp/apkcheck/lib -name '*.so' 2>/dev/null || true)
+
+          # -print -quit rather than `| head -1`: under pipefail, head closing
+          # the pipe can make find exit 141 and take the step down with it.
+          apk=$(find app/build/outputs/apk/debug -name '*.apk' -print -quit)
+          if [ -z "$apk" ]; then
+            echo "::error::No APK was produced."
+            exit 1
+          fi
+          rm -rf /tmp/apkcheck && mkdir -p /tmp/apkcheck
+          unzip -o -q "$apk" -d /tmp/apkcheck
+
+          libs=$(find /tmp/apkcheck/lib -name '*.so' -print 2>/dev/null || true)
           if [ -z "$libs" ]; then
             echo "::error::No native libraries in the APK — llama.cpp did not build."
             exit 1
           fi
-          readelf=$(find "$ANDROID_HOME/ndk" -name 'llvm-readelf' | head -1)
+
+          # The NDK's readelf if the NDK is installed, otherwise whatever the
+          # runner has. Looking inside a directory that may not exist is what
+          # broke this check the first time.
+          readelf=""
+          if [ -d "${ANDROID_HOME:-}/ndk" ]; then
+            readelf=$(find "$ANDROID_HOME/ndk" -name 'llvm-readelf' -print -quit || true)
+          fi
+          if [ -z "$readelf" ]; then
+            readelf=$(command -v llvm-readelf || command -v readelf || true)
+          fi
+          if [ -z "$readelf" ]; then
+            echo "::error::No readelf found to verify alignment."
+            exit 1
+          fi
+          echo "Using $readelf"
+
           fail=0
-          for so in $libs; do
+          while IFS= read -r so; do
             align=$("$readelf" -l "$so" | awk '/LOAD/ {print $NF; exit}')
-            echo "$so -> align $align"
             case "$align" in
-              0x4000|0x10000) ;;
-              *) echo "::error::$so is not 16 KB aligned (align=$align)"; fail=1 ;;
+              0x4000|0x10000) echo "ok    $align  $(basename "$so")" ;;
+              *) echo "::error::$(basename "$so") is aligned $align, needs 16 KB"; fail=1 ;;
             esac
-          done
+          done <<< "$libs"
           exit $fail
 
       - uses: actions/upload-artifact@v4
