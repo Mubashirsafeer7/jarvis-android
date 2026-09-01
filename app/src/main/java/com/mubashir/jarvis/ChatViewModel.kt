@@ -141,6 +141,13 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 loadedModel = engine.loadedModelPath?.let { path -> File(path).name },
                 messages = restored,
                 speakReplies = settings.settings.value.speakReplies,
+                // Set here, before the first frame is drawn, and not inside
+                // reloadLastModel where it used to be. That set it after a disk
+                // read, so every cold start painted the "download a model"
+                // screen for a moment first — which reads exactly like the app
+                // forgetting the model it already has.
+                startingUp = engine.loadedModelPath == null &&
+                    settings.settings.value.lastModelFile != null,
             )
         }
         refreshInstalled()
@@ -188,16 +195,19 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         if (engine.loadedModelPath != null) return
         val remembered = settings.settings.value.lastModelFile ?: return
         viewModelScope.launch {
+            // startingUp is already true here, set before the first frame.
             val file = withContext(Dispatchers.IO) {
                 File(models.modelsDir, remembered).takeIf { it.isFile && models.isGguf(it) }
             }
             if (file == null) {
                 // Deleted, or on a volume that is not mounted. Forget it rather
-                // than trying again on every launch.
+                // than trying again on every launch — and stop waking up, or the
+                // app sits on the waking screen for the rest of its life.
                 settings.setLastModelFile(null)
+                _ui.update { it.copy(startingUp = false) }
                 return@launch
             }
-            _ui.update { it.copy(startingUp = true, error = null) }
+            _ui.update { it.copy(error = null) }
             runCatching { engine.load(file) }
                 .onSuccess {
                     _ui.update { it.copy(startingUp = false, loadedModel = file.name) }
@@ -534,6 +544,40 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Puts the model back if Android took it, before anything is asked of it.
+     *
+     * The runtime gives the model up under real memory pressure rather than let
+     * the process be killed, and nothing told this screen — so the header went
+     * on naming a model that was no longer in memory, and the next message sat
+     * waiting thirty seconds for an engine that had nothing to answer with
+     * before reporting that Jarvis was "busy". It was not busy. It was empty.
+     *
+     * Reloading rather than reporting: the user never asked for the unload, so
+     * they should not have to know it happened.
+     */
+    private suspend fun ensureModelLoaded(): Boolean {
+        if (settings.settings.value.brain == BrainChoice.Server) return true
+        if (engine.loadedModelPath != null) return true
+
+        val remembered = settings.settings.value.lastModelFile ?: return false
+        val file = withContext(Dispatchers.IO) {
+            File(models.modelsDir, remembered).takeIf { it.isFile && models.isGguf(it) }
+        }
+        if (file == null) {
+            settings.setLastModelFile(null)
+            _ui.update { it.copy(loadedModel = null) }
+            return false
+        }
+
+        _ui.update { it.copy(busy = true, busyMessage = R.string.busy_reloading) }
+        val loaded = runCatching { engine.load(file) }
+        _ui.update {
+            it.copy(busy = false, loadedModel = if (loaded.isSuccess) file.name else null)
+        }
+        return loaded.isSuccess
+    }
+
     fun send(text: String, fromVoice: Boolean = false) {
         val prompt = text.trim()
         if (prompt.isEmpty() || _ui.value.generating || _ui.value.busy) return
@@ -556,7 +600,20 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
         // A server brain needs no model on the phone, so readiness is the
         // brain's question rather than the model list's.
-        if (settings.settings.value.brain == BrainChoice.Phone && _ui.value.loadedModel == null) {
+        // A server brain needs nothing on the phone. A phone brain needs either a
+        // model in memory or one on disk it can pick back up.
+        if (settings.settings.value.brain == BrainChoice.Phone &&
+            _ui.value.loadedModel == null &&
+            settings.settings.value.lastModelFile == null
+        ) {
+            // Saying so rather than returning in silence. A send that produces
+            // nothing at all — no message, no error — reads as the app being
+            // broken, which is a worse answer than the true one.
+            _ui.update {
+                it.copy(
+                    error = getApplication<Application>().getString(R.string.error_no_model),
+                )
+            }
             return
         }
 
@@ -576,6 +633,17 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             val sentences = SentenceSplitter()
             var spokenAnything = false
             try {
+                if (!ensureModelLoaded()) {
+                    _ui.update { st ->
+                        st.copy(
+                            messages = st.messages.dropLast(1),
+                            generating = false,
+                            error = getApplication<Application>()
+                                .getString(R.string.error_no_model),
+                        )
+                    }
+                    return@launch
+                }
                 runtime.brain.ask(prompt, settings.settings.value.predictLength).collect { token ->
                     reply.append(token)
                     _ui.update { s -> s.copy(messages = s.messages.replaceLast(reply.toString(), true)) }

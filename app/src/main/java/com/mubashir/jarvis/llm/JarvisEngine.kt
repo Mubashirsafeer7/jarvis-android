@@ -75,11 +75,34 @@ class JarvisEngine(context: Context) {
      * rejected outright and the message was dropped with an error dialog.
      */
     fun ask(prompt: String, predictLength: Int = DEFAULT_PREDICT): Flow<String> = flow {
+        // Checked before waiting, because these are different problems with
+        // different answers and only one of them is worth waiting out. Waiting
+        // thirty seconds and then blaming the last answer — when the engine was
+        // holding no model at all — described the wrong thing entirely and told
+        // the user nothing they could act on.
+        if (loadedModelPath == null) error("No model is loaded.")
+
         withTimeoutOrNull(SETTLE_TIMEOUT_MS) {
             engine.state.first { it is InferenceEngine.State.ModelReady }
-        } ?: error("Jarvis is still busy with the last answer.")
+        } ?: error(settleFailureFor(engine.state.value))
 
         emitAll(engine.sendUserPrompt(prompt, predictLength))
+    }
+
+    /** Says which of the several ways this waits forever actually happened. */
+    private fun settleFailureFor(state: InferenceEngine.State): String = when (state) {
+        is InferenceEngine.State.Error ->
+            "The engine stopped with an error. Load the model again from Settings."
+
+        is InferenceEngine.State.Generating,
+        is InferenceEngine.State.ProcessingUserPrompt,
+        -> "Jarvis is still busy with the last answer."
+
+        is InferenceEngine.State.LoadingModel,
+        is InferenceEngine.State.ProcessingSystemPrompt,
+        -> "Jarvis is still getting the model ready. Try again in a moment."
+
+        else -> "The model is not ready. Load it again from Settings."
     }
 
     /**

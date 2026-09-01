@@ -71,10 +71,13 @@ class JarvisRuntime(context: Context) : ComponentCallbacks2 {
      * Android asks for memory back before it starts killing processes. A loaded
      * model is by far the largest thing this app holds, so give it up rather than
      * be killed outright — the file is still on disk and reloads on demand.
+     *
+     * Which levels count is decided by [givesUpModelAt], and is not the obvious
+     * threshold: see the note there.
      */
     @Suppress("DEPRECATION") // the levels are deprecated; the callback still fires
     override fun onTrimMemory(level: Int) {
-        if (level < ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) return
+        if (!givesUpModelAt(level)) return
         scope.launch {
             speaker.stop()
             engine.unload()

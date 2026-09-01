@@ -20,7 +20,7 @@ import java.util.Locale
 object IntentRouter {
 
     fun route(input: String): Command? {
-        val text = input.trim().lowercase(Locale.ROOT).removeSuffix("?").trim()
+        val text = normalise(input)
         if (text.isEmpty()) return null
 
         torch(text)?.let { return it }
@@ -35,10 +35,41 @@ object IntentRouter {
         return null
     }
 
+    /**
+     * What the rest of this file is allowed to assume it is matching.
+     *
+     * Recognisers do not hand back tidy strings. They capitalise, they add a
+     * full stop, and they sometimes double a space. Every pattern below anchors
+     * to the whole line, so any one of those made the command silently miss and
+     * fall through to the model — "torch on." did nothing at all.
+     */
+    private fun normalise(input: String): String = input
+        .lowercase(Locale.ROOT)
+        .replace(SPACES, " ")
+        .trim()
+        .replace(TRAILING_PUNCTUATION, "")
+        .trim()
+
+    private val SPACES = Regex("""\s+""")
+
+    /** Includes the Urdu full stop, which a recogniser set to Urdu will produce. */
+    private val TRAILING_PUNCTUATION = Regex("""[.!?\u06D4]+$""")
+
+    /**
+     * Urdu verbs get written both joined and split, by the same person in the
+     * same sentence — "kar do" and "kardo" are one word said one way. Matching
+     * only the spelling I happened to think of first is why "call kardo" did
+     * nothing.
+     */
+    private const val KAR = """kar\s*(?:o|do|ein|dein)"""
+    private const val KHOL = """khol\s*(?:o|do|ein|dein)"""
+    private const val LAGA = """laga\s*(?:o|do|dein)"""
+    private const val BHEJ = """bhej\s*(?:o|do|dein)"""
+
     private val TORCH_ON = listOf(
         // "jala do" is two words; matching only "jalado" missed how it is said.
         Regex("""^(?:turn |switch )?(?:the )?(?:torch|flashlight|light) (?:on|jala\s*(?:o|do|dein)?)$"""),
-        Regex("""^(?:torch|flashlight|light) (?:on )?kar(?:o|do|dein)$"""),
+        Regex("""^(?:torch|flashlight|light) (?:on |chalu )?$KAR$"""),
         Regex("""^(?:turn |switch )?on (?:the )?(?:torch|flashlight)$"""),
     )
     private val TORCH_OFF = listOf(
@@ -98,13 +129,13 @@ object IntentRouter {
     // Ordered so "message Ali saying hello" cannot be read as a call.
     private val SMS = listOf(
         Regex("""^(?:send (?:a )?(?:sms|message|text) to |text |message )(.+?) (?:saying|that) (.+)$"""),
-        Regex("""^(.+?) ko (?:sms|message|text) (?:karo|kar do|karein|bhejo|bhej do)[, ]+(.+)$"""),
+        Regex("""^(.+?) ko (?:sms|message|text) (?:$KAR|$BHEJ)[, ]+(.+)$"""),
     )
 
     private fun sms(text: String): Command? {
         for (pattern in SMS) {
             val match = pattern.matchEntire(text) ?: continue
-            val who = match.groupValues[1].trim()
+            val who = cleanName(match.groupValues[1])
             val body = match.groupValues[2].trim()
             if (who.isNotEmpty() && body.isNotEmpty()) return Command.SendSms(who, body)
         }
@@ -113,15 +144,14 @@ object IntentRouter {
 
     private val CALL = listOf(
         Regex("""^(?:call|phone|dial) (.+)$"""),
-        Regex("""^(.+?) ko (?:call|phone|dial) (?:karo|kar do|karein|lagao|laga do)$"""),
+        Regex("""^(.+?) ko (?:call|phone|dial) (?:$KAR|$LAGA)$"""),
     )
 
     private fun call(text: String): Command? {
         for (pattern in CALL) {
             val match = pattern.matchEntire(text) ?: continue
-            val who = match.groupValues[1].trim().removeSuffix(" please").trim()
-            // "call me back later" is conversation, not a command.
-            if (who.isEmpty() || who.split(' ').size > 4) continue
+            val who = cleanName(match.groupValues[1])
+            if (!isPlausibleName(who)) continue
             return Command.Call(who)
         }
         return null
@@ -129,16 +159,41 @@ object IntentRouter {
 
     private val OPEN_APP = listOf(
         Regex("""^open (.+?)(?: app)?$"""),
-        Regex("""^(.+?) (?:app )?(?:kholo|khol do|kholein|open karo|open kar do)$"""),
+        Regex("""^(.+?) (?:app )?(?:$KHOL|open\s+$KAR)$"""),
     )
 
     private fun openApp(text: String): Command? {
         for (pattern in OPEN_APP) {
             val match = pattern.matchEntire(text) ?: continue
-            val name = match.groupValues[1].trim()
+            val name = cleanName(match.groupValues[1])
             if (name.isEmpty() || name.split(' ').size > 4) continue
             return Command.OpenApp(name)
         }
         return null
     }
+
+    /** Strips the politeness and punctuation a name never actually contains. */
+    private fun cleanName(raw: String): String = raw
+        .trim()
+        .removeSuffix(" please")
+        .trim()
+        .trim(',', '.', '!', '?', ' ')
+
+    /**
+     * "call me back later" is a thing people say to each other, and it used to
+     * be read as an instruction to ring somebody called "me back later". The
+     * name is only three words, so counting them never caught it. What does
+     * catch it is that no name starts with a pronoun.
+     */
+    private fun isPlausibleName(who: String): Boolean {
+        if (who.isEmpty()) return false
+        val words = who.split(' ').filter { it.isNotEmpty() }
+        if (words.isEmpty() || words.size > 4) return false
+        return words.first() !in NOT_A_NAME
+    }
+
+    private val NOT_A_NAME = setOf(
+        "me", "him", "her", "them", "us", "you", "it",
+        "back", "again", "later", "someone", "somebody", "anyone",
+    )
 }

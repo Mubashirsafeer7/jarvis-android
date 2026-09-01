@@ -207,6 +207,9 @@
     <string name="mic_denied_title">Microphone blocked</string>
     <string name="mic_denied_body">Jarvis needs the microphone to listen. Android will not ask again, so it has to be turned on in the app\'s permissions.</string>
 
+    <string name="busy_reloading">Picking the model back up…</string>
+    <string name="error_no_model">No model is loaded yet. Pick one in Settings → Models, or switch the brain to a server.</string>
+
     <!-- Wake word -->
     <string name="wake_channel">Listening for the name</string>
     <string name="wake_channel_detail">Shown the whole time Jarvis is listening for its name, because an app that can hear you should say so.</string>
