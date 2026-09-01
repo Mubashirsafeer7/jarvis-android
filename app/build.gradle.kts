@@ -42,6 +42,16 @@ android {
     buildFeatures {
         compose = true
     }
+
+    packaging {
+        jniLibs {
+            // ggml dlopens its CPU backends by path out of the app's native
+            // library directory. Left packaged, they stay inside the APK and
+            // that directory is empty, so no backend is ever found and every
+            // model fails to load.
+            useLegacyPackaging = true
+        }
+    }
 }
 
 dependencies {

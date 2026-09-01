@@ -109,7 +109,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     load(file)
                 }
                 .onFailure { e ->
-                    _ui.update { it.copy(busy = false, error = e.message ?: "Import fail hua") }
+                    _ui.update { it.copy(busy = false, error = describeFailure(e)) }
                 }
         }
     }
@@ -124,7 +124,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
                 .onFailure { e ->
-                    _ui.update { it.copy(busy = false, error = e.message ?: "Model load nahi hua") }
+                    _ui.update { it.copy(busy = false, error = describeFailure(e)) }
                 }
         }
     }
@@ -160,7 +160,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     _ui.update { s -> s.copy(messages = s.messages.replaceLast(reply.toString(), true)) }
                 }
             }.onFailure { e ->
-                _ui.update { it.copy(error = e.message ?: "Jawab generate nahi hua") }
+                _ui.update { it.copy(error = describeFailure(e)) }
             }
             _ui.update { s ->
                 s.copy(
@@ -188,7 +188,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             runCatching { engine.benchmark() }
                 .onSuccess { result -> _ui.update { it.copy(busy = false, benchmark = result) } }
                 .onFailure { e ->
-                    _ui.update { it.copy(busy = false, error = e.message ?: "Benchmark fail hua") }
+                    _ui.update { it.copy(busy = false, error = describeFailure(e)) }
                 }
         }
     }

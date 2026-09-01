@@ -94,6 +94,15 @@ fun SetupScreen(
                 fontSize = 12.sp, fontFamily = FontFamily.Monospace,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            Spacer(Modifier.height(6.dp))
+            // Downloads are WiFi-only on purpose — these files are gigabytes.
+            // Without saying so, a download queued on mobile data just sits
+            // there and looks broken.
+            Text(
+                "Download sirf WiFi par chalta hai — mobile data par intezaar karega.",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Spacer(Modifier.height(4.dp))
             ModelCatalog.all.forEach { spec ->
                 val fits = caps.totalRamGb >= spec.minRamGb
