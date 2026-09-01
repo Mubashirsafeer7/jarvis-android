@@ -1,6 +1,17 @@
 package com.mubashir.jarvis.ui
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -430,40 +441,101 @@ private fun VoiceOverlay(
 @Composable
 private fun Bubble(message: ChatMessage) {
     val fromUser = message.fromUser
-    Row(
+    // BoxWithConstraints rather than fillMaxWidth(fraction): a fraction is a
+    // width, not a limit, so every bubble was forced to exactly 86% of the
+    // screen whatever it held. One word came out as a full-width slab.
+    BoxWithConstraints(
         Modifier.fillMaxWidth(),
-        horizontalArrangement = if (fromUser) Arrangement.End else Arrangement.Start,
+        contentAlignment = if (fromUser) Alignment.CenterEnd else Alignment.CenterStart,
     ) {
+        val widest = maxWidth * 0.86f
         Surface(
-            // A fraction rather than a fixed 300dp, so it reads the same on any
-            // screen width.
-            modifier = Modifier.fillMaxWidth(0.86f),
+            modifier = Modifier.widthIn(max = widest),
+            // Not a filled amber block. A large saturated slab of AmberDeep on
+            // a near-black ground is the heaviest thing on the screen, which is
+            // the wrong weight for "hi" — the words are the content, the colour
+            // is only there to say who said them. A tinted panel with a lit
+            // edge says the same thing and lets the reactor stay the brightest
+            // thing in the room.
             color = if (fromUser) {
-                MaterialTheme.colorScheme.primaryContainer
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
             } else {
                 MaterialTheme.colorScheme.surfaceContainerHigh
             },
+            border = if (fromUser) {
+                BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.45f))
+            } else {
+                null
+            },
             shape = MaterialTheme.shapes.medium,
         ) {
-            Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
-                Text(
-                    text = message.text.ifEmpty { "…" },
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = if (fromUser) {
-                        MaterialTheme.colorScheme.onPrimaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
-                    },
-                )
-                if (message.streaming) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = stringResource(R.string.voice_thinking),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+            Row(Modifier.height(IntrinsicSize.Min)) {
+                // A lit edge on Jarvis's own words, so his side of the
+                // conversation is identifiable at a glance without a fill.
+                if (!fromUser) {
+                    Box(
+                        Modifier
+                            .fillMaxHeight()
+                            .width(2.dp)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)),
                     )
                 }
+                Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+                    if (message.streaming && message.text.isEmpty()) {
+                        // Was a static "…", which is indistinguishable from an
+                        // app that has stopped. Waiting is the normal state on a
+                        // 3B model, so it has to look like waiting.
+                        ThinkingDots()
+                    } else {
+                        Text(
+                            text = message.text,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = if (fromUser) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            },
+                        )
+                    }
+                }
             }
+        }
+    }
+}
+
+/**
+ * Three dots breathing in turn, while an answer is on its way.
+ *
+ * The point is only that it moves. A still screen during a thirty second wait
+ * is the single most common reason someone decides an app has hung, and on a
+ * phone-sized model that wait is ordinary rather than exceptional.
+ */
+@Composable
+private fun ThinkingDots() {
+    val transition = rememberInfiniteTransition(label = "thinking")
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.height(20.dp),
+    ) {
+        repeat(3) { index ->
+            val alpha by transition.animateFloat(
+                initialValue = 0.25f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 600, delayMillis = index * 160),
+                    repeatMode = RepeatMode.Reverse,
+                ),
+                label = "dot$index",
+            )
+            Box(
+                Modifier
+                    .size(6.dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = alpha),
+                        shape = CircleShape,
+                    ),
+            )
         }
     }
 }
