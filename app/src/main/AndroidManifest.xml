@@ -14,6 +14,11 @@
          confirmed from the phone. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Updating in place from GitHub Releases. Android still asks the user to
+         allow installs, and still refuses any APK not signed with the same key
+         as the one already installed. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <!-- RECORD_AUDIO otherwise implies a microphone is required. Jarvis is still
          usable by typing on a device without one. -->
     <uses-feature
@@ -52,6 +57,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Not exported: only the package installer talks to it, and it is
+             reached through a PendingIntent rather than by name. -->
+        <receiver
+            android:name=".update.InstallResultReceiver"
+            android:exported="false" />
     </application>
 
 </manifest>

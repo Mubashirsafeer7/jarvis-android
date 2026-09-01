@@ -82,6 +82,22 @@
     <string name="settings_conversation">CONVERSATION</string>
     <string name="settings_clear_chat_detail">%d messages kept on this phone.</string>
     <string name="settings_clear_chat">Clear conversation</string>
+    <string name="settings_updates">UPDATES</string>
+    <string name="update_idle">Jarvis can update itself from GitHub. Nothing is downloaded until you say so.</string>
+    <string name="update_check">Check for updates</string>
+    <string name="update_check_again">Check again</string>
+    <string name="update_checking">Checking…</string>
+    <string name="update_current">You are on the newest build.</string>
+    <string name="update_available">Version %s is available</string>
+    <string name="update_size">%.0f MB</string>
+    <string name="update_progress">%1$.0f MB of %2$.0f MB</string>
+    <string name="update_download">Download</string>
+    <string name="update_ready">Downloaded. Android will ask you to confirm.</string>
+    <string name="update_install">Install</string>
+    <string name="update_failed">The update could not be installed.</string>
+    <string name="update_needs_permission">Android has to allow Jarvis to install apps before this can go any further.</string>
+    <string name="update_allow">Allow installs</string>
+
     <string name="settings_about">ABOUT</string>
     <string name="settings_version">Version %s</string>
     <string name="settings_offline_note">Jarvis runs entirely on this phone. Nothing you say or type leaves it.</string>

@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.arm.aichat.InferenceEngine
 import com.mubashir.jarvis.data.StoredMessage
+import com.mubashir.jarvis.update.AvailableUpdate
 import com.mubashir.jarvis.model.DownloadState
 import com.mubashir.jarvis.model.InstalledModel
 import com.mubashir.jarvis.model.ModelSpec
@@ -28,6 +29,17 @@ data class ChatMessage(
     val text: String,
     val streaming: Boolean = false,
 )
+
+/** Where a check for a newer build has got to. */
+sealed interface UpdateUi {
+    data object Idle : UpdateUi
+    data object Checking : UpdateUi
+    data object UpToDate : UpdateUi
+    data class Available(val update: AvailableUpdate) : UpdateUi
+    data class Downloading(val downloaded: Long, val total: Long) : UpdateUi
+    data class Ready(val file: File) : UpdateUi
+    data class Failed(val reason: String) : UpdateUi
+}
 
 data class UiState(
     val installed: List<InstalledModel> = emptyList(),
@@ -55,6 +67,7 @@ data class UiState(
     val benchmark: String? = null,
     /** Free space on the model volume. Sampled on refresh, never during layout. */
     val freeSpaceGb: Double = 0.0,
+    val update: UpdateUi = UpdateUi.Idle,
     val notice: String? = null,
     val error: String? = null,
 )
@@ -458,6 +471,62 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun dismissError() = _ui.update { it.copy(error = null, notice = null) }
+
+    // ---- Updating in place ------------------------------------------------
+
+    fun checkForUpdate() {
+        if (_ui.value.update is UpdateUi.Checking) return
+        _ui.update { it.copy(update = UpdateUi.Checking) }
+        viewModelScope.launch {
+            runtime.updates.latest()
+                .onSuccess { found ->
+                    _ui.update {
+                        it.copy(
+                            update = if (found == null) {
+                                UpdateUi.UpToDate
+                            } else {
+                                UpdateUi.Available(found)
+                            },
+                        )
+                    }
+                }
+                .onFailure { e ->
+                    if (e is CancellationException) throw e
+                    _ui.update { it.copy(update = UpdateUi.Failed(describeFailure(e))) }
+                }
+        }
+    }
+
+    fun downloadUpdate() {
+        val available = (_ui.value.update as? UpdateUi.Available)?.update ?: return
+        _ui.update { it.copy(update = UpdateUi.Downloading(0, available.sizeBytes)) }
+        viewModelScope.launch {
+            runtime.updates.download(available) { done, total ->
+                _ui.update { it.copy(update = UpdateUi.Downloading(done, total)) }
+            }
+                .onSuccess { file -> _ui.update { it.copy(update = UpdateUi.Ready(file)) } }
+                .onFailure { e ->
+                    if (e is CancellationException) throw e
+                    _ui.update { it.copy(update = UpdateUi.Failed(describeFailure(e))) }
+                }
+        }
+    }
+
+    fun installUpdate() {
+        val ready = (_ui.value.update as? UpdateUi.Ready)?.file ?: return
+        viewModelScope.launch {
+            runtime.installer.install(ready).onFailure { e ->
+                if (e is CancellationException) throw e
+                _ui.update { it.copy(update = UpdateUi.Failed(describeFailure(e))) }
+            }
+        }
+    }
+
+    fun canInstallUpdates(): Boolean = runtime.installer.canInstall()
+
+    fun allowInstallsIntent() = runtime.installer.allowInstallsIntent()
+
+    fun dismissUpdate() = _ui.update { it.copy(update = UpdateUi.Idle) }
 
     // Nothing is torn down here on purpose. The engine, speaker and recogniser
     // belong to the process, not to this screen: destroying the engine on the way

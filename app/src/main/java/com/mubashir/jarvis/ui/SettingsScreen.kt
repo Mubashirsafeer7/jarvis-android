@@ -21,6 +21,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -32,6 +33,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.mubashir.jarvis.R
 import com.mubashir.jarvis.UiState
+import com.mubashir.jarvis.UpdateUi
 import com.mubashir.jarvis.data.Settings
 import com.mubashir.jarvis.ui.theme.NumericStyle
 
@@ -56,6 +58,11 @@ fun SettingsScreen(
     onDismissBenchmark: () -> Unit,
     onClearChat: () -> Unit,
     onOpenVoiceSettings: () -> Unit,
+    canInstallUpdates: Boolean,
+    onCheckUpdate: () -> Unit,
+    onDownloadUpdate: () -> Unit,
+    onInstallUpdate: () -> Unit,
+    onAllowInstalls: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -195,6 +202,17 @@ fun SettingsScreen(
             }
         }
 
+        SettingsCard(title = stringResource(R.string.settings_updates)) {
+            UpdateBody(
+                state = ui.update,
+                canInstall = canInstallUpdates,
+                onCheck = onCheckUpdate,
+                onDownload = onDownloadUpdate,
+                onInstall = onInstallUpdate,
+                onAllowInstalls = onAllowInstalls,
+            )
+        }
+
         SettingsCard(title = stringResource(R.string.settings_about)) {
             Text(
                 text = stringResource(R.string.settings_version, appVersion),
@@ -213,6 +231,130 @@ fun SettingsScreen(
         Spacer(Modifier.navigationBarsPadding())
     }
 }
+
+@Composable
+private fun UpdateBody(
+    state: UpdateUi,
+    canInstall: Boolean,
+    onCheck: () -> Unit,
+    onDownload: () -> Unit,
+    onInstall: () -> Unit,
+    onAllowInstalls: () -> Unit,
+) {
+    when (state) {
+        UpdateUi.Idle -> {
+            Text(
+                text = stringResource(R.string.update_idle),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(10.dp))
+            OutlinedButton(onClick = onCheck) { Text(stringResource(R.string.update_check)) }
+        }
+
+        UpdateUi.Checking -> Text(
+            text = stringResource(R.string.update_checking),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        UpdateUi.UpToDate -> {
+            Text(
+                text = stringResource(R.string.update_current),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Spacer(Modifier.height(10.dp))
+            OutlinedButton(onClick = onCheck) { Text(stringResource(R.string.update_check_again)) }
+        }
+
+        is UpdateUi.Available -> {
+            Text(
+                text = stringResource(R.string.update_available, state.update.versionName),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            if (state.update.notes.isNotBlank()) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = state.update.notes,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = stringResource(R.string.update_size, state.update.sizeBytes / MB),
+                style = NumericStyle,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(10.dp))
+            // Android refuses to install anything until the user allows it, and
+            // says nothing helpful when it does — so ask first rather than
+            // downloading sixty megabytes into a dead end.
+            if (canInstall) {
+                OutlinedButton(onClick = onDownload) {
+                    Text(stringResource(R.string.update_download))
+                }
+            } else {
+                Text(
+                    text = stringResource(R.string.update_needs_permission),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                Spacer(Modifier.height(6.dp))
+                OutlinedButton(onClick = onAllowInstalls) {
+                    Text(stringResource(R.string.update_allow))
+                }
+            }
+        }
+
+        is UpdateUi.Downloading -> {
+            val fraction = if (state.total > 0) {
+                (state.downloaded.toFloat() / state.total).coerceIn(0f, 1f)
+            } else {
+                null
+            }
+            if (fraction != null) {
+                LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth())
+            } else {
+                LinearProgressIndicator(Modifier.fillMaxWidth())
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = stringResource(
+                    R.string.update_progress,
+                    state.downloaded / MB,
+                    state.total / MB,
+                ),
+                style = NumericStyle,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        is UpdateUi.Ready -> {
+            Text(
+                text = stringResource(R.string.update_ready),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Spacer(Modifier.height(10.dp))
+            OutlinedButton(onClick = onInstall) { Text(stringResource(R.string.update_install)) }
+        }
+
+        is UpdateUi.Failed -> {
+            Text(
+                text = state.reason,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+            Spacer(Modifier.height(10.dp))
+            OutlinedButton(onClick = onCheck) { Text(stringResource(R.string.action_retry)) }
+        }
+    }
+}
+
+private const val MB = 1024.0 * 1024.0
 
 @Composable
 private fun SettingsCard(title: String, content: @Composable () -> Unit) {

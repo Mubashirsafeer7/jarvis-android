@@ -1,0 +1,136 @@
+name: Release
+
+# Tagging is what publishes a build. The tag's last segment is also the
+# versionCode, so the tag alone tells the app in the user's hand whether what is
+# on GitHub is newer than what it is running.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Install NDK
+        run: |
+          set -euo pipefail
+          ndk=$(sed -n 's/^ndk = "\(.*\)"/\1/p' gradle/libs.versions.toml)
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$sdkmanager" --licenses > /dev/null 2>&1 || true
+          "$sdkmanager" --install "ndk;$ndk"
+          if [ ! -d "$ANDROID_HOME/ndk/$ndk" ]; then
+            echo "::error::NDK $ndk was not installed."
+            exit 1
+          fi
+
+      # A release must never be signed with anything but the real key: an APK
+      # with a different signature cannot install over what is on the phone, and
+      # the only way out of that is an uninstall, which deletes the model.
+      - name: Restore signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEYSTORE_BASE64:-}" ]; then
+            echo "::error::KEYSTORE_BASE64 is not set; refusing to publish an unsigned-over release."
+            exit 1
+          fi
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > release.keystore
+          if [ ! -s release.keystore ]; then
+            echo "::error::KEYSTORE_BASE64 decoded to an empty file."
+            exit 1
+          fi
+
+      - name: Read the version out of the tag
+        id: version
+        run: |
+          set -euo pipefail
+          name="${GITHUB_REF_NAME#v}"
+          code="${name##*.}"
+          case "$code" in
+            ''|*[!0-9]*)
+              echo "::error::Tag $GITHUB_REF_NAME does not end in a version code."
+              exit 1 ;;
+          esac
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "Building $name (versionCode $code)"
+
+      - name: Build release APK
+        run: |
+          ./gradlew assembleRelease --no-daemon \
+            -PjarvisVersionCode=${{ steps.version.outputs.code }} \
+            -PjarvisVersionName=${{ steps.version.outputs.name }}
+
+      - name: Check the APK is signed with the expected key
+        run: |
+          set -uo pipefail
+          expected="466246B3E723650A12A5A82FA1124D1B2CE7D78915BC9A9E70B28419A72E955B"
+          apk=$(find app/build/outputs/apk/release -name '*.apk' -print -quit)
+          if [ -z "$apk" ]; then
+            echo "::error::No APK was produced."
+            exit 1
+          fi
+          apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner -print | sort | tail -1)
+          got=$("$apksigner" verify --print-certs "$apk" \
+            | grep -i 'SHA-256 digest' | head -1 | awk '{print $NF}' \
+            | tr -d ':' | tr 'a-f' 'A-F')
+          if [ "$got" != "$expected" ]; then
+            echo "::error::Release signed with an unexpected key — it would not install over the existing app."
+            echo "  expected $expected"
+            echo "  got      $got"
+            exit 1
+          fi
+          mkdir -p out
+          cp "$apk" "out/jarvis-${{ steps.version.outputs.code }}.apk"
+          echo "ok  signed with the expected key"
+
+      - name: Check native libraries are 16 KB aligned
+        run: |
+          set -uo pipefail
+          ndk=$(sed -n 's/^ndk = "\(.*\)"/\1/p' gradle/libs.versions.toml)
+          readelf="$ANDROID_HOME/ndk/$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
+          if [ ! -x "$readelf" ]; then
+            echo "::error::llvm-readelf not found; refusing to guess with GNU readelf."
+            exit 1
+          fi
+          rm -rf /tmp/apkcheck && mkdir -p /tmp/apkcheck
+          unzip -o -q "out/jarvis-${{ steps.version.outputs.code }}.apk" -d /tmp/apkcheck
+          fail=0
+          count=0
+          while IFS= read -r so; do
+            [ -n "$so" ] || continue
+            count=$((count + 1))
+            out=$("$readelf" -l "$so" 2>&1) || { echo "::error::readelf failed on $so"; fail=1; continue; }
+            align=$(printf '%s\n' "$out" | awk '/LOAD/ && !seen { print $NF; seen = 1 }')
+            case "$align" in
+              0x4000|0x10000) ;;
+              *) echo "::error::$(basename "$so") is aligned ${align:-unknown}"; fail=1 ;;
+            esac
+          done <<< "$(find /tmp/apkcheck/lib -name '*.so' 2>/dev/null)"
+          echo "Checked $count libraries; fail=$fail"
+          exit $fail
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" \
+            "out/jarvis-${{ steps.version.outputs.code }}.apk" \
+            --title "$GITHUB_REF_NAME" \
+            --notes "Install over the existing app — no uninstall, and the model stays where it is."

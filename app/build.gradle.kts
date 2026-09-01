@@ -103,4 +103,7 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
 
     testImplementation(libs.junit)
+    // The android.jar used for unit tests stubs org.json; without a real
+    // implementation every JSONObject call throws "not mocked".
+    testImplementation(libs.org.json)
 }

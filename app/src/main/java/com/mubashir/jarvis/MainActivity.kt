@@ -148,6 +148,13 @@ private fun JarvisApp(modifier: Modifier = Modifier) {
                 onDismissBenchmark = vm::clearBenchmark,
                 onClearChat = vm::clearChat,
                 onOpenVoiceSettings = { context.openVoiceSettings() },
+                canInstallUpdates = vm.canInstallUpdates(),
+                onCheckUpdate = vm::checkForUpdate,
+                onDownloadUpdate = vm::downloadUpdate,
+                onInstallUpdate = vm::installUpdate,
+                onAllowInstalls = {
+                    runCatching { context.startActivity(vm.allowInstallsIntent()) }
+                },
             )
 
             else -> ChatScreen(
