@@ -47,6 +47,28 @@ jobs:
       - name: Build debug APK
         run: ./gradlew assembleDebug --no-daemon
 
+      # ggml dlopens its CPU backends out of the app's native library directory,
+      # which is only populated when the libraries are extracted at install
+      # time. Packaged instead, that directory is empty and every model fails to
+      # load. The setting lives in the packaging DSL, so assert on what actually
+      # reaches the merged manifest rather than trusting it landed.
+      - name: Check native libraries are extracted at install time
+        run: |
+          set -uo pipefail
+          manifest=$(find app/build/intermediates -name AndroidManifest.xml -path '*merged_manifest*' -print -quit)
+          if [ -z "$manifest" ]; then
+            echo "::error::No merged manifest found to check."
+            exit 1
+          fi
+          echo "Merged manifest: $manifest"
+          if grep -q 'extractNativeLibs="true"' "$manifest"; then
+            echo "ok  extractNativeLibs=true"
+          else
+            echo "::error::extractNativeLibs is not true in the merged manifest — ggml will find no backends and every model load will fail."
+            grep -o 'extractNativeLibs="[^"]*"' "$manifest" || echo "(attribute absent entirely)"
+            exit 1
+          fi
+
       # Upload before the alignment check so a problem there still leaves an
       # installable APK to look at.
       - uses: actions/upload-artifact@v4

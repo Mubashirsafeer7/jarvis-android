@@ -10,6 +10,7 @@ import com.mubashir.jarvis.model.DownloadState
 import com.mubashir.jarvis.model.InstalledModel
 import com.mubashir.jarvis.model.ModelManager
 import com.mubashir.jarvis.model.ModelSpec
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -109,6 +110,9 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     load(file)
                 }
                 .onFailure { e ->
+                    // runCatching swallows cancellation; rethrow so a cleared
+                    // ViewModel does not look like a failure to the user.
+                    if (e is CancellationException) throw e
                     _ui.update { it.copy(busy = false, error = describeFailure(e)) }
                 }
         }
@@ -124,6 +128,9 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
                 .onFailure { e ->
+                    // runCatching swallows cancellation; rethrow so a cleared
+                    // ViewModel does not look like a failure to the user.
+                    if (e is CancellationException) throw e
                     _ui.update { it.copy(busy = false, error = describeFailure(e)) }
                 }
         }
@@ -154,12 +161,16 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
         generation = viewModelScope.launch {
             val reply = StringBuilder()
-            runCatching {
+            try {
                 engine.ask(prompt).collect { token ->
                     reply.append(token)
                     _ui.update { s -> s.copy(messages = s.messages.replaceLast(reply.toString(), true)) }
                 }
-            }.onFailure { e ->
+            } catch (e: CancellationException) {
+                // Stop is a choice, not a failure. runCatching would have caught
+                // this too and shown the user an error dialog for their own tap.
+                throw e
+            } catch (e: Throwable) {
                 _ui.update { it.copy(error = describeFailure(e)) }
             }
             _ui.update { s ->
@@ -188,6 +199,9 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             runCatching { engine.benchmark() }
                 .onSuccess { result -> _ui.update { it.copy(busy = false, benchmark = result) } }
                 .onFailure { e ->
+                    // runCatching swallows cancellation; rethrow so a cleared
+                    // ViewModel does not look like a failure to the user.
+                    if (e is CancellationException) throw e
                     _ui.update { it.copy(busy = false, error = describeFailure(e)) }
                 }
         }

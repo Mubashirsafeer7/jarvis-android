@@ -5,6 +5,8 @@ import com.arm.aichat.AiChat
 import com.arm.aichat.InferenceEngine
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 
 /**
@@ -22,9 +24,27 @@ class JarvisEngine(context: Context) {
 
     suspend fun load(model: File) {
         if (loadedModelPath == model.absolutePath) return
+        awaitInitialised()
         engine.loadModel(model.absolutePath)
         engine.setSystemPrompt(SYSTEM_PROMPT)
         loadedModelPath = model.absolutePath
+    }
+
+    /**
+     * The engine loads its native library on a coroutine of its own, and
+     * [InferenceEngine.loadModel] rejects anything that arrives before that
+     * finishes. A model load issued the moment a download completes can easily
+     * be that early, so wait for the engine to settle rather than racing it.
+     */
+    private suspend fun awaitInitialised() {
+        val settled = withTimeoutOrNull(INIT_TIMEOUT_MS) {
+            engine.state.first { state ->
+                state !is InferenceEngine.State.Uninitialized &&
+                    state !is InferenceEngine.State.Initializing
+            }
+        } ?: error("Engine tayyar nahi hua — native library load hone mein bahut waqt lag gaya")
+
+        if (settled is InferenceEngine.State.Error) throw settled.exception
     }
 
     fun ask(prompt: String, predictLength: Int = DEFAULT_PREDICT): Flow<String> =
@@ -48,6 +68,7 @@ class JarvisEngine(context: Context) {
 
     private companion object {
         const val DEFAULT_PREDICT = 512
+        const val INIT_TIMEOUT_MS = 30_000L
 
         // Small models follow a short, concrete persona far better than a long
         // one, and drift into formal Hindi or pure English without being told
