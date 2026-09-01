@@ -26,6 +26,9 @@ import com.mubashir.jarvis.model.ModelSpec
 import com.mubashir.jarvis.voice.MicLevel
 import com.mubashir.jarvis.voice.SentenceSplitter
 import com.mubashir.jarvis.voice.VoiceInput
+import com.mubashir.jarvis.voice.WakeModelState
+import com.mubashir.jarvis.voice.WakeSignal
+import com.mubashir.jarvis.voice.WakeWordService
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -33,6 +36,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.io.File
@@ -89,6 +94,10 @@ data class UiState(
     val update: UpdateUi = UpdateUi.Idle,
     /** What is doing the thinking, for the header. */
     val brainLabel: String = "",
+    /** Whether the acoustic model that hears the name is installed, and how far along. */
+    val wakeModel: WakeModelState = WakeModelState.Missing,
+    /** Whether the listener is actually running right now. */
+    val wakeListening: Boolean = false,
     /** Result of the last server check, shown in settings. */
     val serverCheck: String? = null,
     /** Something the app needs from the user before it can act. */
@@ -107,6 +116,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private val voice = runtime.voice
     private val settings = runtime.settings
     private val chats = runtime.chats
+    private val wakeModel = runtime.wakeModel
     private val micLevel = MicLevel()
 
     private val _ui = MutableStateFlow(UiState())
@@ -140,6 +150,30 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             speaker.speaking.collect { on -> _ui.update { it.copy(speaking = on) } }
         }
+        viewModelScope.launch {
+            wakeModel.state.collect { state -> _ui.update { it.copy(wakeModel = state) } }
+        }
+        viewModelScope.launch {
+            WakeSignal.listening.collect { on -> _ui.update { it.copy(wakeListening = on) } }
+        }
+        viewModelScope.launch {
+            // Heard its name. Everything the microphone button does, without the
+            // button.
+            WakeSignal.heard.collect { startListening() }
+        }
+        viewModelScope.launch {
+            // Who holds the microphone, derived from what the app is doing
+            // rather than set by hand at each of the places it changes — a
+            // cancelled or failed attempt has to give it back too, and one that
+            // does not leaves the wake word deaf with nothing to show for it.
+            //
+            // Speaking counts. The listener would otherwise hear the reply, and
+            // Jarvis says its own name often enough to wake itself in a loop.
+            _ui.map { it.listening || it.speaking }
+                .distinctUntilChanged()
+                .collect { busy -> WakeSignal.setAppHoldsMic(busy) }
+        }
+        startWakeWordIfEnabled()
     }
 
     /**
@@ -835,6 +869,63 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun canInstallUpdates(): Boolean = runtime.installer.canInstall()
+
+    // ---- Wake word -------------------------------------------------------
+
+    fun wakeWord(): Boolean = settings.settings.value.wakeWord
+
+    /**
+     * Turns answering to the name on or off.
+     *
+     * Turning it on with no acoustic model downloads one first: a switch that
+     * flips and then does nothing, because a forty megabyte file the user was
+     * never told about is missing, is the same thing as a switch that is broken.
+     */
+    fun setWakeWord(on: Boolean) {
+        settings.setWakeWord(on)
+        if (!on) {
+            WakeWordService.stop(getApplication())
+            return
+        }
+        viewModelScope.launch {
+            if (!withContext(Dispatchers.IO) { wakeModel.isInstalled() }) {
+                val state = wakeModel.install()
+                if (state !is WakeModelState.Ready) return@launch
+            }
+            WakeWordService.start(getApplication())
+        }
+    }
+
+    /** Fetches the acoustic model without switching listening on. */
+    fun installWakeModel() {
+        viewModelScope.launch { wakeModel.install() }
+    }
+
+    /** Gives back the forty megabytes, and stops listening, since it cannot. */
+    fun removeWakeModel() {
+        settings.setWakeWord(false)
+        WakeWordService.stop(getApplication())
+        viewModelScope.launch { withContext(Dispatchers.IO) { wakeModel.remove() } }
+    }
+
+    /**
+     * Starts listening again when the app is opened.
+     *
+     * Not from a boot receiver, which is where this belongs and where Android
+     * will not allow it: since 14 a service that takes the microphone cannot be
+     * started from BOOT_COMPLETED at all, and trying throws rather than failing
+     * quietly. So after a restart the app has to be opened once. The settings
+     * screen says so rather than leaving it to be discovered.
+     */
+    private fun startWakeWordIfEnabled() {
+        if (!settings.settings.value.wakeWord) return
+        if (!voice.hasMicPermission()) return
+        viewModelScope.launch {
+            if (withContext(Dispatchers.IO) { wakeModel.isInstalled() }) {
+                WakeWordService.start(getApplication())
+            }
+        }
+    }
 
     fun notifyUpdates(): Boolean = settings.settings.value.notifyUpdates
 

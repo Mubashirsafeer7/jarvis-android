@@ -207,6 +207,35 @@
     <string name="mic_denied_title">Microphone blocked</string>
     <string name="mic_denied_body">Jarvis needs the microphone to listen. Android will not ask again, so it has to be turned on in the app\'s permissions.</string>
 
+    <!-- Wake word -->
+    <string name="wake_channel">Listening for the name</string>
+    <string name="wake_channel_detail">Shown the whole time Jarvis is listening for its name, because an app that can hear you should say so.</string>
+    <string name="wake_notification_title">Jarvis</string>
+    <string name="wake_notification_starting">Starting up…</string>
+    <string name="wake_notification_listening">Listening for “Jarvis”</string>
+    <string name="wake_notification_paused">Taking your command</string>
+    <string name="wake_notification_stop">Stop</string>
+
+    <string name="settings_wake">Wake word</string>
+    <string name="settings_wake_word">Answer to “Jarvis”</string>
+    <string name="settings_wake_word_detail">Listens for its name and opens the microphone by itself.</string>
+    <string name="settings_wake_detail">A word listener runs the whole time, so a notification stays in the shade. It recognises one word and nothing else — no speech is recorded or sent anywhere.</string>
+    <string name="settings_wake_download">Download listener (%1$s MB)</string>
+    <string name="settings_wake_downloading">Downloading the listener… %1$d%%</string>
+    <string name="settings_wake_unpacking">Unpacking…</string>
+    <string name="settings_wake_ready">Listener installed.</string>
+    <string name="settings_wake_running">Listening now.</string>
+    <string name="settings_wake_stopped">Not listening. Turn it on to start.</string>
+    <string name="settings_wake_remove">Remove listener</string>
+    <string name="settings_wake_needs_mic">Jarvis needs the microphone before it can listen for its name.</string>
+    <string name="settings_wake_battery_title">Keep it alive</string>
+    <string name="settings_wake_battery_detail">Realme and other ColorOS phones stop background apps aggressively. Allow Jarvis to start automatically and exclude it from battery optimisation, or listening will go quiet within the hour.</string>
+    <string name="settings_wake_battery">Battery settings</string>
+    <string name="settings_wake_autostart">Auto-start settings</string>
+    <string name="settings_wake_overlay">Appear on top</string>
+    <string name="settings_wake_overlay_detail">Without this, hearing its name can only open the microphone while the app is already on screen.</string>
+    <string name="settings_wake_boot">After restarting the phone, open Jarvis once. Android does not let an app take the microphone on its own before you have opened it.</string>
+
     <plurals name="seconds">
         <item quantity="one">%d second</item>
         <item quantity="other">%d seconds</item>

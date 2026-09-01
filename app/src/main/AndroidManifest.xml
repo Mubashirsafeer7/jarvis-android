@@ -8,6 +8,12 @@
     <!-- Listening. The recogniser runs on-device, so nothing leaves the phone. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
+    <!-- Listening for the name. Android has not let a background process hold
+         the microphone since Oreo, so the only way to hear a wake word is a
+         foreground service that says, in the shade, that it is listening. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+
     <!-- The model download reports progress through a notification, and on
          Android 13+ that is silently dropped without this permission — which is
          why "you can close the app, the download continues" could not be
@@ -94,6 +100,13 @@
         <receiver
             android:name=".update.InstallResultReceiver"
             android:exported="false" />
+
+        <!-- Holds the microphone and listens for one word. Not exported: it is
+             started by the app and by nothing else. -->
+        <service
+            android:name=".voice.WakeWordService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
 
         <!-- Runs a few hundred bytes of update check, twice a day. -->
         <service

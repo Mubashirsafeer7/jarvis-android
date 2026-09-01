@@ -38,6 +38,8 @@ import androidx.compose.material3.OutlinedTextField
 import com.mubashir.jarvis.data.BrainChoice
 import com.mubashir.jarvis.data.Settings
 import com.mubashir.jarvis.ui.theme.NumericStyle
+import com.mubashir.jarvis.voice.WakeModel
+import com.mubashir.jarvis.voice.WakeModelState
 
 /**
  * Everything that was previously either crammed into the chat header or simply
@@ -71,6 +73,14 @@ fun SettingsScreen(
     onSetKeepRescueCopy: (Boolean) -> Unit,
     phoneControl: Boolean,
     onSetPhoneControl: (Boolean) -> Unit,
+    wakeWord: Boolean,
+    onSetWakeWord: (Boolean) -> Unit,
+    onInstallWakeModel: () -> Unit,
+    onRemoveWakeModel: () -> Unit,
+    micGranted: Boolean,
+    onOpenBatterySettings: () -> Unit,
+    onOpenAutostart: () -> Unit,
+    onOpenOverlaySettings: () -> Unit,
     notifyUpdates: Boolean,
     onSetNotifyUpdates: (Boolean) -> Unit,
     notificationsBlocked: Boolean,
@@ -136,6 +146,136 @@ fun SettingsScreen(
                 TextButton(onClick = onOpenVoiceSettings) {
                     Text(stringResource(R.string.action_open_settings))
                 }
+            }
+        }
+
+        SettingsCard(title = stringResource(R.string.settings_wake)) {
+            SwitchRow(
+                label = stringResource(R.string.settings_wake_word),
+                detail = stringResource(R.string.settings_wake_word_detail),
+                checked = wakeWord,
+                // Enabled without the microphone permission on purpose: tapping
+                // it is what asks for the permission. Disabling it would leave
+                // the message below with no way to act on it.
+                enabled = micUsable,
+                onCheckedChange = onSetWakeWord,
+            )
+
+            if (!micGranted) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.settings_wake_needs_mic),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = stringResource(R.string.settings_wake_detail),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            Spacer(Modifier.height(12.dp))
+            when (val model = ui.wakeModel) {
+                is WakeModelState.Missing -> OutlinedButton(onClick = onInstallWakeModel) {
+                    Text(
+                        stringResource(
+                            R.string.settings_wake_download,
+                            (WakeModel.APPROX_BYTES / MB).toInt().toString(),
+                        ),
+                    )
+                }
+
+                is WakeModelState.Fetching -> {
+                    val fraction =
+                        if (model.total > 0) model.downloaded.toFloat() / model.total else 0f
+                    Text(
+                        text = stringResource(
+                            R.string.settings_wake_downloading,
+                            (fraction * 100).toInt(),
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    LinearProgressIndicator(
+                        progress = { fraction.coerceIn(0f, 1f) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+
+                is WakeModelState.Unpacking -> Text(
+                    text = stringResource(R.string.settings_wake_unpacking),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                is WakeModelState.Ready -> {
+                    Text(
+                        text = stringResource(
+                            if (ui.wakeListening) R.string.settings_wake_running
+                            else if (wakeWord) R.string.settings_wake_stopped
+                            else R.string.settings_wake_ready,
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    TextButton(onClick = onRemoveWakeModel) {
+                        Text(stringResource(R.string.settings_wake_remove))
+                    }
+                }
+
+                is WakeModelState.Failed -> {
+                    Text(
+                        text = model.reason,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                    OutlinedButton(onClick = onInstallWakeModel) {
+                        Text(stringResource(R.string.action_retry))
+                    }
+                }
+            }
+
+            if (wakeWord) {
+                Spacer(Modifier.height(14.dp))
+                Text(
+                    text = stringResource(R.string.settings_wake_battery_title),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = stringResource(R.string.settings_wake_battery_detail),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = onOpenBatterySettings) {
+                        Text(stringResource(R.string.settings_wake_battery))
+                    }
+                    TextButton(onClick = onOpenAutostart) {
+                        Text(stringResource(R.string.settings_wake_autostart))
+                    }
+                }
+
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = stringResource(R.string.settings_wake_overlay_detail),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                TextButton(onClick = onOpenOverlaySettings) {
+                    Text(stringResource(R.string.settings_wake_overlay))
+                }
+
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = stringResource(R.string.settings_wake_boot),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
 

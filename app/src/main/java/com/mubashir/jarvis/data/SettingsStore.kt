@@ -30,6 +30,8 @@ data class Settings(
     /** Base URL of a server speaking the OpenAI chat format, e.g. http://100.x.y.z:8080 */
     val serverUrl: String = "",
     val serverModel: String = "",
+    /** Whether a listener runs continuously waiting to hear the name. */
+    val wakeWord: Boolean = false,
     /** Whether to be told in the notification shade when a newer build exists. */
     val notifyUpdates: Boolean = true,
     /** The newest release already announced, so the same one is not announced twice. */
@@ -60,6 +62,7 @@ class SettingsStore(context: Context) {
         }.getOrDefault(BrainChoice.Phone),
         serverUrl = prefs.getString(KEY_SERVER_URL, "").orEmpty(),
         serverModel = prefs.getString(KEY_SERVER_MODEL, "").orEmpty(),
+        wakeWord = prefs.getBoolean(KEY_WAKE, false),
         notifyUpdates = prefs.getBoolean(KEY_NOTIFY_UPDATES, true),
         lastNotifiedVersion = prefs.getLong(KEY_LAST_NOTIFIED, 0L),
     )
@@ -77,6 +80,8 @@ class SettingsStore(context: Context) {
     fun setServerUrl(url: String) = update { it.copy(serverUrl = url.trim()) }
 
     fun setServerModel(model: String) = update { it.copy(serverModel = model.trim()) }
+
+    fun setWakeWord(on: Boolean) = update { it.copy(wakeWord = on) }
 
     fun setNotifyUpdates(on: Boolean) = update { it.copy(notifyUpdates = on) }
 
@@ -96,6 +101,7 @@ class SettingsStore(context: Context) {
             .putString(KEY_BRAIN, next.brain.name)
             .putString(KEY_SERVER_URL, next.serverUrl)
             .putString(KEY_SERVER_MODEL, next.serverModel)
+            .putBoolean(KEY_WAKE, next.wakeWord)
             .putBoolean(KEY_NOTIFY_UPDATES, next.notifyUpdates)
             .putLong(KEY_LAST_NOTIFIED, next.lastNotifiedVersion)
             .apply()
@@ -111,6 +117,7 @@ class SettingsStore(context: Context) {
         const val KEY_BRAIN = "brain"
         const val KEY_SERVER_URL = "server_url"
         const val KEY_SERVER_MODEL = "server_model"
+        const val KEY_WAKE = "wake_word"
         const val KEY_NOTIFY_UPDATES = "notify_updates"
         const val KEY_LAST_NOTIFIED = "last_notified_version"
     }

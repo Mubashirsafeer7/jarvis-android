@@ -1,5 +1,6 @@
 package com.mubashir.jarvis.voice
 
+import org.json.JSONObject
 import java.util.Locale
 
 /**
@@ -36,6 +37,28 @@ object WakePhrase {
             .split(' ', '\n', '\t')
             .any { token -> token.trim { it in TRIM } == WORD }
     }
+
+    /**
+     * Pulls the words out of what the recogniser reports.
+     *
+     * Vosk answers with JSON — `{"text": "jarvis"}` once an utterance ends, and
+     * `{"partial": "jarvis"}` while it is still being spoken. Partials are worth
+     * reading: waiting for the end of the utterance adds most of a second before
+     * the microphone opens, and the whole point is that it feels immediate.
+     *
+     * @return what was heard, or null if this report says nothing
+     */
+    fun spoken(voskJson: String?): String? {
+        if (voskJson.isNullOrBlank()) return null
+        val json = runCatching { JSONObject(voskJson) }.getOrNull() ?: return null
+        for (key in KEYS) {
+            val value = json.optString(key).takeIf { it.isNotBlank() }
+            if (value != null) return value
+        }
+        return null
+    }
+
+    private val KEYS = listOf("text", "partial")
 
     private val TRIM = charArrayOf('.', ',', '!', '?', '"', '\'').toSet()
 }

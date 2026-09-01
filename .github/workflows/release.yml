@@ -73,6 +73,13 @@ jobs:
           urls=$(tr -d '\n' < app/src/main/java/com/mubashir/jarvis/model/ModelCatalog.kt \
             | sed 's/" *+ *"//g' \
             | grep -oE 'https://[^"]+\.gguf[^"]*' | sort -u)
+          wake=$(grep -oE 'https://[^"]+\.zip' \
+            app/src/main/java/com/mubashir/jarvis/voice/WakeModel.kt | sort -u)
+          if [ -z "$urls" ] || [ -z "$wake" ]; then
+            echo "::error::A download URL is missing from the source."
+            exit 1
+          fi
+          urls=$(printf '%s\n%s\n' "$urls" "$wake")
           fail=0
           while IFS= read -r url; do
             [ -n "$url" ] || continue

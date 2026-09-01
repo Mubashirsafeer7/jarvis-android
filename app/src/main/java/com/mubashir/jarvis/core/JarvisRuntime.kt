@@ -19,6 +19,7 @@ import com.mubashir.jarvis.update.UpdateNotifier
 import com.mubashir.jarvis.update.UpdateRepository
 import com.mubashir.jarvis.voice.Speaker
 import com.mubashir.jarvis.voice.VoiceInput
+import com.mubashir.jarvis.voice.WakeModelStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
@@ -40,6 +41,7 @@ class JarvisRuntime(context: Context) : ComponentCallbacks2 {
     val engine = JarvisEngine(app)
     val speaker = Speaker(app)
     val voice = VoiceInput(app)
+    val wakeModel = WakeModelStore(app)
     val models = ModelManager(app)
     val downloads = DownloadStore(app)
     val settings = SettingsStore(app)

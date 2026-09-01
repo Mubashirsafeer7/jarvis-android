@@ -1,7 +1,9 @@
 package com.mubashir.jarvis
 
 import com.mubashir.jarvis.voice.WakePhrase
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -61,5 +63,42 @@ class WakePhraseTest {
         assertTrue(WakePhrase.GRAMMAR.contains("\"[unk]\""))
         assertTrue(WakePhrase.GRAMMAR.trim().startsWith("["))
         assertTrue(WakePhrase.GRAMMAR.trim().endsWith("]"))
+    }
+
+    @Test
+    fun `a finished utterance is read`() {
+        assertEquals("jarvis", WakePhrase.spoken("""{"text" : "jarvis"}"""))
+    }
+
+    @Test
+    fun `a partial guess is read, because waiting for the end is too slow`() {
+        assertEquals("jarvis", WakePhrase.spoken("""{"partial" : "jarvis"}"""))
+    }
+
+    @Test
+    fun `an empty report says nothing`() {
+        assertNull(WakePhrase.spoken("""{"partial" : ""}"""))
+        assertNull(WakePhrase.spoken("""{"text" : ""}"""))
+        assertNull(WakePhrase.spoken("{}"))
+        assertNull(WakePhrase.spoken(""))
+        assertNull(WakePhrase.spoken(null))
+    }
+
+    @Test
+    fun `nonsense from the recogniser does not crash the service`() {
+        // It holds the microphone for hours; an exception here would end
+        // listening for the rest of the day.
+        assertNull(WakePhrase.spoken("not json at all"))
+        assertNull(WakePhrase.spoken("[1, 2, 3]"))
+    }
+
+    @Test
+    fun `an unknown word reported by the recogniser is not the name`() {
+        assertFalse(WakePhrase.heard(WakePhrase.spoken("""{"partial" : "[unk]"}""")))
+    }
+
+    @Test
+    fun `the name inside a report wakes it`() {
+        assertTrue(WakePhrase.heard(WakePhrase.spoken("""{"text" : "jarvis"}""")))
     }
 }

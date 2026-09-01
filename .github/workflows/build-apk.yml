@@ -92,6 +92,16 @@ jobs:
             echo "::error::No model URLs found to check."
             exit 1
           fi
+
+          # The acoustic model the wake word downloads at runtime, from a
+          # different host that is blocked from here for the same reason.
+          wake=$(grep -oE 'https://[^"]+\.zip' \
+            app/src/main/java/com/mubashir/jarvis/voice/WakeModel.kt | sort -u)
+          if [ -z "$wake" ]; then
+            echo "::error::No wake word model URL found to check."
+            exit 1
+          fi
+          urls=$(printf '%s\n%s\n' "$urls" "$wake")
           fail=0
           while IFS= read -r url; do
             [ -n "$url" ] || continue

@@ -52,17 +52,31 @@ import com.mubashir.jarvis.ui.SetupScreen
 import com.mubashir.jarvis.ui.WakingScreen
 import com.mubashir.jarvis.ui.theme.JarvisTheme
 import com.mubashir.jarvis.update.UpdateNotifier
+import com.mubashir.jarvis.voice.WakeWordService
 
 class MainActivity : ComponentActivity() {
 
     /** Bumped when an update notification opens the app, so Compose reacts. */
     private val openUpdates = mutableIntStateOf(0)
 
+    /**
+     * Bumped when the wake word service opened the app because it heard the name.
+     *
+     * The service also signals through WakeSignal, which is instant and is what
+     * carries a wake while the app is already on screen. This is for the other
+     * case: the app was not running at all, so there was nothing listening to
+     * that signal when it fired, and only the intent survives.
+     */
+    private val woken = mutableIntStateOf(0)
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         if (intent.getBooleanExtra(UpdateNotifier.EXTRA_OPEN_UPDATES, false)) {
             openUpdates.intValue++
+        }
+        if (intent.getBooleanExtra(WakeWordService.EXTRA_WOKEN, false)) {
+            woken.intValue++
         }
     }
 
@@ -77,6 +91,9 @@ class MainActivity : ComponentActivity() {
         if (intent?.getBooleanExtra(UpdateNotifier.EXTRA_OPEN_UPDATES, false) == true) {
             openUpdates.intValue++
         }
+        if (intent?.getBooleanExtra(WakeWordService.EXTRA_WOKEN, false) == true) {
+            woken.intValue++
+        }
         setContent {
             JarvisTheme {
                 // No Scaffold inset padding at the root: it stopped the voice
@@ -88,7 +105,7 @@ class MainActivity : ComponentActivity() {
                         .fillMaxSize()
                         .background(MaterialTheme.colorScheme.background),
                 ) {
-                    JarvisApp(openUpdates = openUpdates.intValue)
+                    JarvisApp(openUpdates = openUpdates.intValue, woken = woken.intValue)
                 }
             }
         }
@@ -102,7 +119,7 @@ private const val NAVY_ARGB = 0xFF060B14.toInt()
 private enum class Screen { Chat, Models, Settings }
 
 @Composable
-private fun JarvisApp(openUpdates: Int = 0, modifier: Modifier = Modifier) {
+private fun JarvisApp(openUpdates: Int = 0, woken: Int = 0, modifier: Modifier = Modifier) {
     val vm: ChatViewModel = viewModel()
     val ui by vm.ui.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -129,6 +146,12 @@ private fun JarvisApp(openUpdates: Int = 0, modifier: Modifier = Modifier) {
             screen = Screen.Settings
             vm.checkForUpdate()
         }
+    }
+
+    // Opened by the wake word service. Starting to listen from here rather than
+    // inside the service keeps every path into the microphone the same one.
+    LaunchedEffect(woken) {
+        if (woken > 0) vm.startListening()
     }
 
     val picker = rememberLauncherForActivityResult(
@@ -162,6 +185,17 @@ private fun JarvisApp(openUpdates: Int = 0, modifier: Modifier = Modifier) {
         micGranted = granted
         micDenied = !granted
         if (granted) vm.startListening()
+    }
+
+    // A launcher of its own, because granting the microphone from the wake word
+    // switch has to end up turning the wake word on — not opening the mic for a
+    // command, which is what the button's launcher does.
+    val wakeMicPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        micGranted = granted
+        micDenied = !granted
+        if (granted) vm.setWakeWord(true)
     }
 
     // With no model there is nowhere to go back to.
@@ -218,6 +252,20 @@ private fun JarvisApp(openUpdates: Int = 0, modifier: Modifier = Modifier) {
                 onSetKeepRescueCopy = vm::setKeepRescueCopy,
                 phoneControl = vm.phoneControl(),
                 onSetPhoneControl = vm::setPhoneControl,
+                wakeWord = vm.wakeWord(),
+                onSetWakeWord = { on ->
+                    if (on && !micGranted) {
+                        wakeMicPermission.launch(Manifest.permission.RECORD_AUDIO)
+                    } else {
+                        vm.setWakeWord(on)
+                    }
+                },
+                onInstallWakeModel = vm::installWakeModel,
+                onRemoveWakeModel = vm::removeWakeModel,
+                micGranted = micGranted,
+                onOpenBatterySettings = { context.openBatterySettings() },
+                onOpenAutostart = { context.openAutostartSettings() },
+                onOpenOverlaySettings = { context.openOverlaySettings() },
                 notifyUpdates = vm.notifyUpdates(),
                 onSetNotifyUpdates = vm::setNotifyUpdates,
                 notificationsBlocked = !vm.canNotify(),
@@ -449,4 +497,52 @@ private fun Context.openAppSettings() {
         .setData(Uri.fromParts("package", packageName, null))
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     runCatching { startActivity(intent) }
+}
+
+/**
+ * The list of apps excluded from battery optimisation.
+ *
+ * Deliberately the list rather than the direct request. Asking outright needs
+ * REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, which is a permission Android treats as
+ * exceptional; the list is one more tap and needs nothing.
+ */
+private fun Context.openBatterySettings() {
+    val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    if (runCatching { startActivity(intent) }.isSuccess) return
+    openAppSettings()
+}
+
+/**
+ * ColorOS and its relatives keep their own list of apps allowed to start
+ * themselves, separate from anything in Android, and an app not on it is stopped
+ * without appeal. There is no public intent for it, so these are the activities
+ * the manufacturers actually ship, tried in turn.
+ */
+private fun Context.openAutostartSettings() {
+    val candidates = listOf(
+        "com.coloros.safecenter" to "com.coloros.safecenter.permission.startup.StartupAppListActivity",
+        "com.coloros.safecenter" to "com.coloros.safecenter.startupapp.StartupAppListActivity",
+        "com.oplus.safecenter" to "com.oplus.safecenter.permission.startup.StartupAppListActivity",
+        "com.oppo.safe" to "com.oppo.safe.permission.startup.StartupAppListActivity",
+        "com.miui.securitycenter" to "com.miui.permcenter.autostart.AutoStartManagementActivity",
+        "com.samsung.android.lool" to "com.samsung.android.sm.ui.battery.BatteryActivity",
+    )
+    for ((pkg, activity) in candidates) {
+        val intent = Intent()
+            .setClassName(pkg, activity)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (runCatching { startActivity(intent) }.isSuccess) return
+    }
+    // Every phone has this one, and the auto-start switch is usually on it.
+    openAppSettings()
+}
+
+/** "Appear on top", which is what lets a wake open the app from the background. */
+private fun Context.openOverlaySettings() {
+    val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+        .setData(Uri.fromParts("package", packageName, null))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    if (runCatching { startActivity(intent) }.isSuccess) return
+    openAppSettings()
 }
