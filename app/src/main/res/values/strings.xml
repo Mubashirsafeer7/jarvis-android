@@ -105,7 +105,7 @@
     <string name="settings_control">PHONE CONTROL</string>
     <string name="settings_phone_control">Act on commands</string>
     <string name="settings_phone_control_detail">Recognised commands are carried out instead of being answered.</string>
-    <string name="settings_phone_control_list">Working now: torch, battery, timers, opening apps. Calls, messages, location, calendar and notifications are recognised but say plainly that they are not built yet.</string>
+    <string name="settings_phone_control_list">Working now: torch, battery, timers, opening apps, calls and messages. Calls and messages always show who and what on screen and wait for you to confirm. Location, calendar and notifications are recognised but say plainly that they are not built yet.</string>
 
     <!-- Phone control -->
     <string name="tool_torch_on">Torch on.</string>
@@ -120,6 +120,26 @@
     <string name="tool_no_clock">There is no clock app to set a timer with.</string>
     <string name="tool_opened">Opening %s.</string>
     <string name="tool_no_such_app">I could not find an app called %s.</string>
+    <string name="tool_calling">Calling %s.</string>
+    <string name="tool_call_failed">The call could not be placed.</string>
+    <string name="tool_sms_sent">Message sent to %s.</string>
+    <string name="tool_sms_failed">The message could not be sent.</string>
+    <string name="tool_no_contact">I could not find %s in your contacts.</string>
+    <string name="tool_no_contacts_permission">Jarvis needs access to contacts to find who you mean.</string>
+    <string name="tool_no_call_permission">Jarvis needs permission to place calls.</string>
+    <string name="tool_no_sms_permission">Jarvis needs permission to send messages.</string>
+    <string name="confirm_call_title">Call %s?</string>
+    <string name="confirm_call_body">%1$s · %2$s</string>
+    <string name="confirm_sms_title">Send this to %s?</string>
+    <string name="confirm_sms_body">%1$s · %2$s\n\n%3$s</string>
+    <string name="confirm_call">Call</string>
+    <string name="confirm_send">Send</string>
+    <string name="permission_title">Permission needed</string>
+    <string name="permission_allow">Allow</string>
+    <string name="permission_granted">That is allowed now — say it again and I will do it.</string>
+    <string name="permission_denied">Without that permission I cannot do it.</string>
+    <string name="choose_contact_title">Which one?</string>
+    <string name="cancelled">Cancelled.</string>
     <string name="tool_no_calls">I cannot place calls yet.</string>
     <string name="tool_no_messages">I cannot send messages yet.</string>
     <string name="tool_no_location">I cannot check your location yet.</string>

@@ -19,6 +19,13 @@
          as the one already installed. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+    <!-- Placing calls and sending messages on request. Both are gated behind an
+         on-screen confirmation naming the person and the number, and neither is
+         ever reached without the user asking for it in so many words. -->
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+
     <!-- Setting a timer through the phone's own clock app. -->
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
 

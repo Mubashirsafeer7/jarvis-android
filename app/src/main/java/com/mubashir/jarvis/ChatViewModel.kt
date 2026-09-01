@@ -8,7 +8,15 @@ import com.arm.aichat.InferenceEngine
 import com.mubashir.jarvis.data.StoredMessage
 import com.mubashir.jarvis.update.AvailableUpdate
 import com.mubashir.jarvis.model.DownloadState
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
+import com.mubashir.jarvis.tools.Action
+import com.mubashir.jarvis.tools.Ask
 import com.mubashir.jarvis.tools.Command
+import com.mubashir.jarvis.tools.Contact
+import com.mubashir.jarvis.tools.ContactMatch
+import com.mubashir.jarvis.tools.ContactMatcher
 import com.mubashir.jarvis.tools.IntentRouter
 import com.mubashir.jarvis.tools.ToolOutcome
 import com.mubashir.jarvis.model.InstalledModel
@@ -77,6 +85,8 @@ data class UiState(
     /** Free space on the model volume. Sampled on refresh, never during layout. */
     val freeSpaceGb: Double = 0.0,
     val update: UpdateUi = UpdateUi.Idle,
+    /** Something the app needs from the user before it can act. */
+    val ask: Ask? = null,
     val notice: String? = null,
     val error: String? = null,
 )
@@ -522,6 +532,22 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 error = null,
             )
         }
+        // A call or a message cannot be taken back, so neither happens straight
+        // from a command. Both resolve to a real person first and are then
+        // spelled out on screen for confirmation.
+        when (command) {
+            is Command.Call -> {
+                resolveContact(command.who, message = null)
+                return
+            }
+
+            is Command.SendSms -> {
+                resolveContact(command.who, message = command.message)
+                return
+            }
+
+            else -> Unit
+        }
         viewModelScope.launch {
             val outcome = runtime.tools.run(command)
             val spoken = when (outcome) {
@@ -533,6 +559,122 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             if (_ui.value.speakReplies) speaker.speak(spoken)
             persistChat()
         }
+    }
+
+    /**
+     * Turns a spoken name into a person, or asks. Never picks between two
+     * plausible matches: the cost of being wrong is a call to the wrong number.
+     */
+    private fun resolveContact(who: String, message: String?) {
+        val forCall = message == null
+        // Every permission this needs is asked for up front. Checking only
+        // contacts and discovering the missing one at the moment of dialling
+        // surfaces as a SecurityException, which the user sees as "the call
+        // could not be placed" — true, but useless.
+        val required = listOf(
+            Manifest.permission.READ_CONTACTS,
+            if (forCall) Manifest.permission.CALL_PHONE else Manifest.permission.SEND_SMS,
+        )
+        val missing = required.filterNot(::granted)
+        if (missing.isNotEmpty()) {
+            askFor(
+                missing,
+                when {
+                    Manifest.permission.READ_CONTACTS in missing ->
+                        R.string.tool_no_contacts_permission
+
+                    forCall -> R.string.tool_no_call_permission
+                    else -> R.string.tool_no_sms_permission
+                },
+            )
+            return
+        }
+
+        viewModelScope.launch {
+            val book = withContext(Dispatchers.IO) { runtime.contacts.all() }
+            when (val found = ContactMatcher.match(who, book)) {
+                is ContactMatch.None -> say(
+                    getApplication<Application>().getString(R.string.tool_no_contact, who),
+                )
+
+                is ContactMatch.Several ->
+                    _ui.update { it.copy(ask = Ask.Choose(found.contacts, message)) }
+
+                is ContactMatch.One -> confirm(found.contact, message)
+            }
+        }
+    }
+
+    private fun granted(permission: String): Boolean =
+        ContextCompat.checkSelfPermission(getApplication(), permission) ==
+            PackageManager.PERMISSION_GRANTED
+
+    private fun askFor(permissions: List<String>, reasonRes: Int) {
+        _ui.update {
+            it.copy(
+                ask = Ask.NeedPermission(
+                    permissions,
+                    getApplication<Application>().getString(reasonRes),
+                ),
+            )
+        }
+    }
+
+    private fun confirm(contact: Contact, message: String?) {
+        val action = if (message == null) {
+            Action.Call(contact)
+        } else {
+            Action.Sms(contact, message)
+        }
+        _ui.update { it.copy(ask = Ask.Confirm(action)) }
+    }
+
+    /** The user picked one of several matching people. */
+    fun chooseContact(contact: Contact) {
+        val message = (_ui.value.ask as? Ask.Choose)?.message
+        confirm(contact, message)
+    }
+
+    /** The user said yes. This is the only path that places a call or sends a message. */
+    fun confirmAsk() {
+        val action = (_ui.value.ask as? Ask.Confirm)?.action ?: return
+        _ui.update { it.copy(ask = null) }
+        viewModelScope.launch {
+            val outcome = runtime.tools.perform(action)
+            say(
+                when (outcome) {
+                    is ToolOutcome.Done -> outcome.spoken
+                    is ToolOutcome.NotYet -> outcome.spoken
+                    is ToolOutcome.Failed -> outcome.spoken
+                },
+            )
+        }
+    }
+
+    /**
+     * Clears the request after Android has answered. A grant is not acted on by
+     * itself: the user asks again, now that it can work.
+     */
+    fun permissionResult(granted: Boolean) {
+        _ui.update { it.copy(ask = null) }
+        say(
+            getApplication<Application>().getString(
+                if (granted) R.string.permission_granted else R.string.permission_denied,
+            ),
+        )
+    }
+
+    fun dismissAsk() {
+        val hadAsked = _ui.value.ask != null
+        _ui.update { it.copy(ask = null) }
+        if (hadAsked) say(getApplication<Application>().getString(R.string.cancelled))
+    }
+
+    /** Adds a line from Jarvis and reads it out, without involving the model. */
+    private fun say(text: String) {
+        _ui.update { it.copy(messages = it.messages + ChatMessage(false, text)) }
+        if (_ui.value.speakReplies) speaker.speak(text)
+        persistChat()
     }
 
     fun stopGenerating() {

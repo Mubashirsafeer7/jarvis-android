@@ -43,6 +43,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mubashir.jarvis.ui.ChatScreen
+import com.mubashir.jarvis.tools.Action
+import com.mubashir.jarvis.tools.Ask
 import com.mubashir.jarvis.ui.SettingsScreen
 import com.mubashir.jarvis.ui.SetupScreen
 import com.mubashir.jarvis.ui.WakingScreen
@@ -96,6 +98,18 @@ private fun JarvisApp(modifier: Modifier = Modifier) {
             vm.import(uri, context.displayNameOf(uri))
             screen = Screen.Chat
         }
+    }
+
+    // Contacts, calling and messaging are asked for only at the moment one is
+    // actually needed, never up front — an assistant that demands the phone book
+    // on first launch has not earned it yet.
+    val toolPermissions = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        // Deliberately not retried automatically. Saying it again is one
+        // sentence, and acting on a request the user may have moved on from —
+        // by placing a call — is not a thing to do on their behalf.
+        vm.permissionResult(granted = results.values.all { it })
     }
 
     // The mic button asks for permission the first time, then listens. Granting
@@ -207,6 +221,51 @@ private fun JarvisApp(modifier: Modifier = Modifier) {
             )
         }
 
+        when (val ask = ui.ask) {
+            is Ask.Confirm -> ConfirmActionDialog(
+                action = ask.action,
+                onConfirm = vm::confirmAsk,
+                onDismiss = vm::dismissAsk,
+            )
+
+            is Ask.Choose -> AlertDialog(
+                onDismissRequest = vm::dismissAsk,
+                title = { Text(stringResource(R.string.choose_contact_title)) },
+                text = {
+                    Column {
+                        ask.contacts.forEach { contact ->
+                            TextButton(onClick = { vm.chooseContact(contact) }) {
+                                Text("${contact.name} · ${contact.number}")
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = vm::dismissAsk) {
+                        Text(stringResource(R.string.action_cancel))
+                    }
+                },
+            )
+
+            is Ask.NeedPermission -> AlertDialog(
+                onDismissRequest = vm::dismissAsk,
+                title = { Text(stringResource(R.string.permission_title)) },
+                text = { Text(ask.reason) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        toolPermissions.launch(ask.permissions.toTypedArray())
+                    }) { Text(stringResource(R.string.permission_allow)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = vm::dismissAsk) {
+                        Text(stringResource(R.string.action_cancel))
+                    }
+                },
+            )
+
+            null -> Unit
+        }
+
         // A permanently denied microphone made the button do nothing at all,
         // with no way for the user to find out why.
         if (micDenied) {
@@ -228,6 +287,51 @@ private fun JarvisApp(modifier: Modifier = Modifier) {
             )
         }
     }
+}
+
+/**
+ * Spells out exactly who is about to be called or messaged, and with what.
+ *
+ * The whole point is that the number is on screen: a misheard name that
+ * resolved to the wrong person is caught here, by a human, rather than after
+ * the call connects.
+ */
+@Composable
+private fun ConfirmActionDialog(
+    action: Action,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val title = when (action) {
+        is Action.Call -> stringResource(R.string.confirm_call_title, action.contact.name)
+        is Action.Sms -> stringResource(R.string.confirm_sms_title, action.contact.name)
+    }
+    val body = when (action) {
+        is Action.Call -> stringResource(
+            R.string.confirm_call_body, action.contact.name, action.contact.number,
+        )
+
+        is Action.Sms -> stringResource(
+            R.string.confirm_sms_body,
+            action.contact.name,
+            action.contact.number,
+            action.message,
+        )
+    }
+    val confirmLabel = when (action) {
+        is Action.Call -> stringResource(R.string.confirm_call)
+        is Action.Sms -> stringResource(R.string.confirm_send)
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { Text(body) },
+        confirmButton = { TextButton(onClick = onConfirm) { Text(confirmLabel) } },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+        },
+    )
 }
 
 /**

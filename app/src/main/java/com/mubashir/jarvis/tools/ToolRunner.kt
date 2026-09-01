@@ -3,6 +3,9 @@ package com.mubashir.jarvis.tools
 import android.content.Context
 import android.content.Intent
 import android.hardware.camera2.CameraManager
+import android.net.Uri
+import android.os.Build
+import android.telephony.SmsManager
 import android.os.BatteryManager
 import android.provider.AlarmClock
 import com.mubashir.jarvis.R
@@ -37,6 +40,9 @@ class ToolRunner(private val context: Context) {
             is Command.Timer -> timer(command.seconds)
             is Command.OpenApp -> openApp(command.name)
 
+            // Calls and messages never arrive here as commands — they are
+            // resolved to a real contact and confirmed on screen first, then
+            // carried out through perform().
             is Command.Call -> notYet(R.string.tool_no_calls)
             is Command.SendSms -> notYet(R.string.tool_no_messages)
             is Command.WhereAmI -> notYet(R.string.tool_no_location)
@@ -47,6 +53,42 @@ class ToolRunner(private val context: Context) {
     }
 
     private fun notYet(res: Int) = ToolOutcome.NotYet(context.getString(res))
+
+    /** Carries out an action the user has already confirmed on screen. */
+    suspend fun perform(action: Action): ToolOutcome = withContext(Dispatchers.Default) {
+        when (action) {
+            is Action.Call -> call(action.contact)
+            is Action.Sms -> sms(action.contact, action.message)
+        }
+    }
+
+    private fun call(contact: Contact): ToolOutcome = runCatching {
+        val intent = Intent(Intent.ACTION_CALL)
+            .setData(Uri.fromParts("tel", contact.number, null))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
+        ToolOutcome.Done(context.getString(R.string.tool_calling, contact.name))
+    }.getOrElse { ToolOutcome.Failed(context.getString(R.string.tool_call_failed)) }
+
+    private fun sms(contact: Contact, message: String): ToolOutcome = runCatching {
+        // SmsManager only became available through getSystemService in API 31,
+        // and minSdk here is 30 — on that one release it has to come from the
+        // deprecated accessor or it is simply null.
+        val manager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            context.getSystemService(SmsManager::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            SmsManager.getDefault()
+        } ?: return ToolOutcome.Failed(context.getString(R.string.tool_sms_failed))
+        // A long message has to be split or the network silently drops the tail.
+        val parts = manager.divideMessage(message)
+        if (parts.size == 1) {
+            manager.sendTextMessage(contact.number, null, message, null, null)
+        } else {
+            manager.sendMultipartTextMessage(contact.number, null, parts, null, null)
+        }
+        ToolOutcome.Done(context.getString(R.string.tool_sms_sent, contact.name))
+    }.getOrElse { ToolOutcome.Failed(context.getString(R.string.tool_sms_failed)) }
 
     private fun torch(on: Boolean): ToolOutcome = runCatching {
         val cameras = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager

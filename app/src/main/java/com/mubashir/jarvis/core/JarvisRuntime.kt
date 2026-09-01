@@ -8,6 +8,7 @@ import com.mubashir.jarvis.data.SettingsStore
 import com.mubashir.jarvis.llm.JarvisEngine
 import com.mubashir.jarvis.model.DownloadStore
 import com.mubashir.jarvis.model.ModelManager
+import com.mubashir.jarvis.tools.Contacts
 import com.mubashir.jarvis.tools.ToolRunner
 import com.mubashir.jarvis.update.ApkInstaller
 import com.mubashir.jarvis.update.UpdateRepository
@@ -39,6 +40,7 @@ class JarvisRuntime(context: Context) : ComponentCallbacks2 {
     val settings = SettingsStore(app)
     val chats = ChatStore(app)
     val tools = ToolRunner(app)
+    val contacts = Contacts(app)
     val updates = UpdateRepository(app)
     val installer = ApkInstaller(app)
     val capabilities = DeviceCapabilities.read(app)
