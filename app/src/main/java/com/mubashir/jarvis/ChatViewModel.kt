@@ -49,6 +49,12 @@ data class UiState(
     val downloadingSpec: ModelSpec? = null,
     val busy: Boolean = false,
     /**
+     * Loading the model the app had last time, on its way up. Distinct from
+     * [busy]: nothing the user did is waiting on it, so it gets a screen of its
+     * own rather than a modal spinner over the setup list.
+     */
+    val startingUp: Boolean = false,
+    /**
      * What the busy overlay should say. It always claimed a model was loading,
      * including while exporting a 4 GB file or running a benchmark.
      */
@@ -110,10 +116,50 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         }
         refreshInstalled()
         resumePendingDownload()
+        reloadLastModel()
         viewModelScope.launch {
             speaker.speaking.collect { on -> _ui.update { it.copy(speaking = on) } }
         }
     }
+
+    /**
+     * Picks the model back up on a cold start.
+     *
+     * Without this the app opened on the model picker every single time, because
+     * a loaded model was only ever remembered in a process that Android had by
+     * then killed — and a screen offering to download a model you already have
+     * reads as if the download never worked.
+     */
+    private fun reloadLastModel() {
+        if (engine.loadedModelPath != null) return
+        val remembered = settings.settings.value.lastModelFile ?: return
+        viewModelScope.launch {
+            val file = withContext(Dispatchers.IO) {
+                File(models.modelsDir, remembered).takeIf { it.isFile && models.isGguf(it) }
+            }
+            if (file == null) {
+                // Deleted, or on a volume that is not mounted. Forget it rather
+                // than trying again on every launch.
+                settings.setLastModelFile(null)
+                return@launch
+            }
+            _ui.update { it.copy(startingUp = true, error = null) }
+            runCatching { engine.load(file) }
+                .onSuccess {
+                    _ui.update { it.copy(startingUp = false, loadedModel = file.name) }
+                }
+                .onFailure { e ->
+                    if (e is CancellationException) throw e
+                    // Land on the picker with the reason, rather than a blank
+                    // screen that never finishes waking up.
+                    settings.setLastModelFile(null)
+                    _ui.update { it.copy(startingUp = false, error = describeFailure(e)) }
+                }
+        }
+    }
+
+    /** The model the app is coming back to, for the waking screen. */
+    fun lastModelName(): String? = settings.settings.value.lastModelFile
 
     fun micAvailable(): Boolean = voice.isAvailable()
 

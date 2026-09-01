@@ -131,6 +131,8 @@
     <string name="delete_body">%1$s takes up %2$.2f GB. Deleting it cannot be undone, and downloading it again takes a while.</string>
 
     <!-- Busy and dialogs -->
+    <string name="waking_title">Waking up</string>
+    <string name="waking_subtitle">Loading the model…</string>
     <string name="busy_loading">Loading the model — the first time takes a while</string>
     <string name="busy_importing">Copying the model onto this phone…</string>
     <string name="busy_saving">Copying to Downloads…</string>

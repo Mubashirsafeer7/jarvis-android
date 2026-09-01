@@ -45,6 +45,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mubashir.jarvis.ui.ChatScreen
 import com.mubashir.jarvis.ui.SettingsScreen
 import com.mubashir.jarvis.ui.SetupScreen
+import com.mubashir.jarvis.ui.WakingScreen
 import com.mubashir.jarvis.ui.theme.JarvisTheme
 
 class MainActivity : ComponentActivity() {
@@ -120,6 +121,10 @@ private fun JarvisApp(modifier: Modifier = Modifier) {
 
     Box(modifier.fillMaxSize()) {
         when {
+            // Picking the last model back up. Not the picker, and not a modal
+            // spinner over it — nothing the user did is waiting on this.
+            ui.startingUp -> WakingScreen(modelName = vm.lastModelName())
+
             ui.loadedModel == null || screen == Screen.Models -> SetupScreen(
                 ui = ui,
                 caps = vm.capabilities,
