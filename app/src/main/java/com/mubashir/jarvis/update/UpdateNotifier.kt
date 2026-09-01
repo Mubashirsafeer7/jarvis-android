@@ -28,7 +28,16 @@ class UpdateNotifier(private val context: Context) {
     ) == PackageManager.PERMISSION_GRANTED
 
     fun notify(update: AvailableUpdate) {
-        if (!canNotify()) return
+        // Checked inline rather than through canNotify(). The guard belongs
+        // next to the thing it guards — posting without the permission throws —
+        // and a check one call away is one lint cannot follow either.
+        if (ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
         ensureChannel()
 
         val open = Intent(context, MainActivity::class.java)
