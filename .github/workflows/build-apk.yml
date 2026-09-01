@@ -55,6 +55,15 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${KEYSTORE_BASE64:-}" ]; then
+            # A pull request from a fork never receives secrets, so demanding
+            # one there would fail every PR for a reason that has nothing to do
+            # with the change. The build still proves the code compiles; it just
+            # does not produce an installable APK, and the check below is
+            # skipped rather than asserting against a key that was never used.
+            if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+              echo "::warning::No signing secret on a pull request; building unsigned-over."
+              exit 0
+            fi
             echo "::error::KEYSTORE_BASE64 is not set."
             exit 1
           fi
@@ -97,9 +106,6 @@ jobs:
       - name: Unit tests
         run: ./gradlew testDebugUnitTest --no-daemon
 
-      - name: Lint
-        run: ./gradlew lintDebug --no-daemon
-
       - name: Build debug APK
         # The password goes through the environment, not the command line, so it
         # does not show up in a process list or a build scan.
@@ -140,6 +146,10 @@ jobs:
       - name: Check the APK is signed with the expected key
         run: |
           set -uo pipefail
+          if [ ! -f release.keystore ]; then
+            echo "No signing key was restored (pull request); nothing to assert."
+            exit 0
+          fi
           expected="62C85F7A0ACCF60A27A3122214038751139358310840F72C3153A7FF6777E4BC"
           apk=$(find app/build/outputs/apk/debug -name '*.apk' -print -quit)
           if [ -z "$apk" ]; then
@@ -235,3 +245,9 @@ jobs:
 
           echo "Checked $count libraries; fail=$fail"
           exit $fail
+
+      # Last, deliberately. Lint takes between seven and twenty minutes on this
+      # project, and nothing about it decides whether the APK works — so it must
+      # not stand between a push and an installable build.
+      - name: Lint
+        run: ./gradlew lintDebug --no-daemon
