@@ -61,6 +61,8 @@ class ChatStore(context: Context) {
 
     private companion object {
         const val FILE_NAME = "chat.json"
+        const val KEY_USER = "user"
+        const val KEY_TEXT = "text"
         const val MAX_MESSAGES = 200
     }
 }
