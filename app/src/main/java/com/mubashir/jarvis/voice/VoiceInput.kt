@@ -36,7 +36,7 @@ class VoiceInput(private val context: Context) {
 
         /** Live microphone loudness in dB, for driving the reactor. */
         data class Level(val rmsDb: Float) : Event
-        data class Failed(val reason: String) : Event
+        data class Failed(val reason: String, val fixableInSettings: Boolean = false) : Event
     }
 
     fun hasMicPermission(): Boolean =
@@ -93,7 +93,8 @@ class VoiceInput(private val context: Context) {
             }
 
             override fun onError(error: Int) {
-                trySend(Event.Failed(describe(error)))
+                val problem = describeVoiceError(error)
+                trySend(Event.Failed(problem.message, problem.fixableInSettings))
                 close()
             }
 
@@ -112,8 +113,11 @@ class VoiceInput(private val context: Context) {
                 RecognizerIntent.EXTRA_LANGUAGE_MODEL,
                 RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
             )
-            // Indian English handles Hinglish code-switching better than en-US.
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-IN")
+            // Ask for Indian English but do not demand it. Forcing EXTRA_LANGUAGE
+            // to a pack the phone has not downloaded fails outright with
+            // ERROR_LANGUAGE_UNAVAILABLE, which is what broke voice entirely;
+            // as a preference the recogniser falls back to whatever it does have.
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "en-IN")
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             // Only meaningful on the fallback path; the on-device recogniser is
             // offline by definition.
@@ -133,18 +137,4 @@ class VoiceInput(private val context: Context) {
             ?.firstOrNull()
             ?.takeIf(String::isNotBlank)
 
-    private fun describe(error: Int): String = when (error) {
-        SpeechRecognizer.ERROR_AUDIO -> "Microphone se awaaz nahi aayi"
-        SpeechRecognizer.ERROR_CLIENT -> "Recognizer band ho gaya"
-        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone ki ijazat nahi hai"
-        SpeechRecognizer.ERROR_NETWORK,
-        SpeechRecognizer.ERROR_NETWORK_TIMEOUT ->
-            "Recognizer ne internet maanga — is phone par offline model nahi mila"
-
-        SpeechRecognizer.ERROR_NO_MATCH -> "Samajh nahi aaya, dobara boliye"
-        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Recognizer pehle se chal raha hai"
-        SpeechRecognizer.ERROR_SERVER -> "Recognizer service ne error diya"
-        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Kuch sunai nahi diya"
-        else -> "Sun-ne mein masla hua (code $error)"
-    }
 }

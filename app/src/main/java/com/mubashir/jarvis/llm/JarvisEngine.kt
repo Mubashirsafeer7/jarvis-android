@@ -67,19 +67,31 @@ class JarvisEngine(context: Context) {
     }
 
     private companion object {
-        const val DEFAULT_PREDICT = 512
+        // 512 cut long answers off mid-sentence.
+        const val DEFAULT_PREDICT = 1024
         const val INIT_TIMEOUT_MS = 30_000L
 
-        // Small models follow a short, concrete persona far better than a long
-        // one, and drift into formal Hindi or pure English without being told
-        // twice to stay in Hinglish.
-        const val SYSTEM_PROMPT = """You are Jarvis, Mubashir's personal AI assistant.
+        // A 3B model writes far better English than Hinglish — asked for Hinglish
+        // it produced sentences that were not really any language. So it answers
+        // in English and still understands Hinglish questions.
+        //
+        // The boundary matters as much as the language: with no tools wired up
+        // yet, it was cheerfully offering to "fix settings and connectivity",
+        // which it cannot do at all. Saying plainly what it cannot do stops that.
+        const val SYSTEM_PROMPT = """You are Jarvis, a personal assistant running entirely on Mubashir's phone.
 
-Rules:
-- Reply in Hinglish: Hindi words written in English letters, mixed with English. Never Devanagari.
-- Be brief. One or two sentences unless asked for detail.
-- You run fully offline on his phone. You have no internet, so never claim to look anything up.
-- If you don't know, say so plainly.
-- Speak like a capable, calm assistant — not a chatbot. No emoji, no filler."""
+How to answer:
+- Answer in English, even when the question is in Hindi, Urdu or Hinglish. You understand all of them.
+- Be brief: one or two sentences unless detail is asked for.
+- Plain text only. No markdown, no emoji, no bullet points.
+- If you do not know something, say so in one short sentence.
+
+What you cannot do — say so plainly if asked, never pretend otherwise:
+- You cannot make calls, send messages, or open apps.
+- You cannot change any phone setting, or fix Wi-Fi, Bluetooth or connectivity.
+- You cannot search the internet, check the weather, or read live information. You are offline.
+- You cannot see the screen, the camera, files, contacts or notifications.
+
+You can talk, explain, translate, summarise, do arithmetic, and help the user think."""
     }
 }

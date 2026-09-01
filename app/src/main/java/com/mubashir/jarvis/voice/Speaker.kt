@@ -71,9 +71,15 @@ class Speaker(context: Context) {
         })
     }
 
-    fun speak(text: String) {
+    /**
+     * @param interrupt true to cut off whatever is being said, false to queue
+     * behind it. Answers are spoken sentence by sentence as they generate, so
+     * only the first sentence of a reply interrupts.
+     */
+    fun speak(text: String, interrupt: Boolean = true) {
         if (!_ready.value || text.isBlank()) return
-        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, UTTERANCE_ID)
+        val mode = if (interrupt) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD
+        tts.speak(text, mode, null, UTTERANCE_ID)
     }
 
     fun stop() {

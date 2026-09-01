@@ -7,10 +7,12 @@ import androidx.lifecycle.viewModelScope
 import com.arm.aichat.InferenceEngine
 import com.mubashir.jarvis.llm.JarvisEngine
 import com.mubashir.jarvis.model.DownloadState
+import com.mubashir.jarvis.model.DownloadStore
 import com.mubashir.jarvis.model.InstalledModel
 import com.mubashir.jarvis.model.ModelManager
 import com.mubashir.jarvis.model.ModelSpec
 import com.mubashir.jarvis.voice.MicLevel
+import com.mubashir.jarvis.voice.SentenceSplitter
 import com.mubashir.jarvis.voice.Speaker
 import com.mubashir.jarvis.voice.VoiceInput
 import kotlinx.coroutines.CancellationException
@@ -56,6 +58,7 @@ data class UiState(
 class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     private val models = ModelManager(app)
+    private val downloadStore = DownloadStore(app)
     private val engine = JarvisEngine(app)
     private val speaker = Speaker(app)
     private val voice = VoiceInput(app)
@@ -75,6 +78,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         refreshInstalled()
+        resumePendingDownload()
         viewModelScope.launch {
             speaker.speaking.collect { on -> _ui.update { it.copy(speaking = on) } }
         }
@@ -168,6 +172,20 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         val id = models.startDownload(spec)
+        downloadStore.remember(id, spec.id)
+        watchDownload(id, spec, autoLoad = true)
+    }
+
+    /**
+     * Picks up a download that was still running when the app was last closed.
+     * Without this the setup screen offered to start it again from zero.
+     */
+    private fun resumePendingDownload() {
+        val (id, spec) = downloadStore.pending() ?: return
+        watchDownload(id, spec, autoLoad = false)
+    }
+
+    private fun watchDownload(id: Long, spec: ModelSpec, autoLoad: Boolean) {
         downloadId = id
         _ui.update { it.copy(downloadingSpec = spec, error = null) }
         viewModelScope.launch {
@@ -176,19 +194,21 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 when (state) {
                     is DownloadState.Done -> {
                         downloadId = null
+                        downloadStore.forget()
                         _ui.update { it.copy(downloadingSpec = null, download = null) }
                         refreshInstalled()
-                        load(state.file)
+                        if (autoLoad) load(state.file)
                     }
 
                     is DownloadState.Failed -> {
                         downloadId = null
+                        downloadStore.forget()
                         _ui.update {
                             it.copy(downloadingSpec = null, download = null, error = state.reason)
                         }
                     }
 
-                    is DownloadState.Running -> Unit
+                    is DownloadState.Running, is DownloadState.Waiting -> Unit
                 }
             }
         }
@@ -197,6 +217,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun cancelDownload() {
         downloadId?.let(models::cancelDownload)
         downloadId = null
+        downloadStore.forget()
         _ui.update { it.copy(downloadingSpec = null, download = null) }
     }
 
@@ -261,10 +282,21 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
         generation = viewModelScope.launch {
             val reply = StringBuilder()
+            // Speak each sentence as it lands rather than waiting for the whole
+            // answer — on a 3B model that wait was half a minute of silence.
+            val sentences = SentenceSplitter()
+            var spokenAnything = false
             try {
                 engine.ask(prompt).collect { token ->
                     reply.append(token)
                     _ui.update { s -> s.copy(messages = s.messages.replaceLast(reply.toString(), true)) }
+
+                    if (_ui.value.speakReplies) {
+                        sentences.accept(token).forEach { sentence ->
+                            speaker.speak(sentence, interrupt = !spokenAnything)
+                            spokenAnything = true
+                        }
+                    }
                 }
             } catch (e: CancellationException) {
                 // Stop is a choice, not a failure. runCatching would have caught
@@ -280,7 +312,11 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     generating = false,
                 )
             }
-            if (_ui.value.speakReplies && answer.isNotBlank()) speaker.speak(answer)
+            if (_ui.value.speakReplies) {
+                sentences.flush()?.let { tail ->
+                    speaker.speak(tail, interrupt = !spokenAnything)
+                }
+            }
         }
     }
 

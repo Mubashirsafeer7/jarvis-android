@@ -26,6 +26,17 @@ sealed interface DownloadState {
             get() = if (totalBytes > 0) (downloadedBytes.toFloat() / totalBytes) else null
     }
 
+    /**
+     * Queued or stalled. Previously these were reported as Running, so a download
+     * waiting on a network it would never get looked identical to one making
+     * progress — the screen just sat there.
+     */
+    data class Waiting(
+        val reason: String,
+        val downloadedBytes: Long,
+        val totalBytes: Long,
+    ) : DownloadState
+
     data class Done(val file: File) : DownloadState
     data class Failed(val reason: String) : DownloadState
 }
@@ -124,7 +135,10 @@ class ModelManager(private val context: Context) {
             .setDestinationInExternalFilesDir(
                 context, null, "$MODELS_DIR/${spec.fileName}"
             )
-            .setAllowedOverMetered(false)
+            // Mobile data allowed: a download that silently queues forever
+            // waiting for Wi-Fi is worse than one the user chose to pay for.
+            // The screen states the size before this is ever called.
+            .setAllowedOverMetered(true)
             .setAllowedOverRoaming(false)
         return downloads.enqueue(request)
     }
@@ -150,31 +164,25 @@ class ModelManager(private val context: Context) {
                 val total = cursor.getLong(
                     cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)
                 )
+                val reason = cursor.getInt(
+                    cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON)
+                )
                 when (status) {
-                    DownloadManager.STATUS_SUCCESSFUL -> {
-                        val file = fileFor(spec)
-                        if (isGguf(file)) {
-                            DownloadState.Done(file)
-                        } else {
-                            file.delete()
-                            DownloadState.Failed(
-                                "File poori nahi utri ya GGUF nahi hai. Dobara koshish karein."
-                            )
-                        }
-                    }
+                    DownloadManager.STATUS_SUCCESSFUL -> verifyDownloaded(spec, total)
 
-                    DownloadManager.STATUS_FAILED -> {
-                        val reason = cursor.getInt(
-                            cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON)
-                        )
-                        DownloadState.Failed(describeFailure(reason))
-                    }
+                    DownloadManager.STATUS_FAILED -> DownloadState.Failed(describeFailure(reason))
+
+                    DownloadManager.STATUS_PAUSED ->
+                        DownloadState.Waiting(describePause(reason), soFar, total)
+
+                    DownloadManager.STATUS_PENDING ->
+                        DownloadState.Waiting("Shuru hone ka intezaar…", soFar, total)
 
                     else -> DownloadState.Running(soFar, total)
                 }
             }
             emit(state)
-            if (state !is DownloadState.Running) return@flow
+            if (state is DownloadState.Done || state is DownloadState.Failed) return@flow
             delay(POLL_INTERVAL_MS)
         }
     }
@@ -197,6 +205,43 @@ class ModelManager(private val context: Context) {
     }
 
     private fun String.ensureGgufSuffix() = if (endsWith(".gguf")) this else "$this.gguf"
+
+    /**
+     * A GGUF header only proves the first eight bytes arrived. A download cut
+     * short still passes that check, gets listed as installed, and then fails
+     * at load time — so compare the size the server reported too.
+     */
+    private fun verifyDownloaded(spec: ModelSpec, reportedTotal: Long): DownloadState {
+        val file = fileFor(spec)
+        return when {
+            !file.exists() ->
+                DownloadState.Failed("Download poora hua par file nahi mili")
+
+            !isGguf(file) -> {
+                file.delete()
+                DownloadState.Failed("Yeh GGUF file nahi hai — link galat ho sakta hai")
+            }
+
+            reportedTotal > 0 && file.length() != reportedTotal -> {
+                file.delete()
+                DownloadState.Failed(
+                    "File adhoori utri (%.2f GB / %.2f GB). Dobara koshish karein.".format(
+                        file.length() / 1_073_741_824.0,
+                        reportedTotal / 1_073_741_824.0,
+                    )
+                )
+            }
+
+            else -> DownloadState.Done(file)
+        }
+    }
+
+    private fun describePause(reason: Int): String = when (reason) {
+        DownloadManager.PAUSED_WAITING_FOR_NETWORK -> "Network ka intezaar hai"
+        DownloadManager.PAUSED_QUEUED_FOR_WIFI -> "WiFi ka intezaar hai"
+        DownloadManager.PAUSED_WAITING_TO_RETRY -> "Dobara koshish kar raha hai…"
+        else -> "Ruka hua hai (code $reason)"
+    }
 
     private fun describeFailure(reason: Int): String = when (reason) {
         DownloadManager.ERROR_INSUFFICIENT_SPACE -> "Phone mein jagah kam hai"

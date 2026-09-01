@@ -108,11 +108,8 @@ fun SetupScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(6.dp))
-            // Downloads are WiFi-only on purpose — these files are gigabytes.
-            // Without saying so, a download queued on mobile data just sits
-            // there and looks broken.
             Text(
-                "Download sirf WiFi par chalta hai — mobile data par intezaar karega.",
+                "Mobile data par bhi chalega — file badi hai, size dekh kar shuru karein.",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -176,6 +173,7 @@ private fun DownloadCard(spec: ModelSpec, state: DownloadState?, onCancel: () ->
         Text(spec.displayName, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
         Spacer(Modifier.height(12.dp))
         val running = state as? DownloadState.Running
+        val waiting = state as? DownloadState.Waiting
         val fraction = running?.fraction
         if (fraction != null) {
             LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth())
@@ -184,12 +182,16 @@ private fun DownloadCard(spec: ModelSpec, state: DownloadState?, onCancel: () ->
         }
         Spacer(Modifier.height(8.dp))
         Text(
-            running?.let {
-                "%.2f GB / %.2f GB".format(
-                    it.downloadedBytes / 1_073_741_824.0,
-                    it.totalBytes / 1_073_741_824.0,
+            when {
+                running != null -> "%.2f GB / %.2f GB".format(
+                    running.downloadedBytes / 1_073_741_824.0,
+                    running.totalBytes / 1_073_741_824.0,
                 )
-            } ?: "Shuru ho raha hai…",
+                // Say why it is stalled instead of showing a progress bar that
+                // never moves.
+                waiting != null -> waiting.reason
+                else -> "Shuru ho raha hai…"
+            },
             fontSize = 12.sp, fontFamily = FontFamily.Monospace,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
