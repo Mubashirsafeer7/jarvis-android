@@ -20,6 +20,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -46,6 +47,10 @@ fun ChatScreen(
     onStop: () -> Unit,
     onBenchmark: () -> Unit,
     onChangeModel: () -> Unit,
+    onListen: () -> Unit,
+    onStopListening: () -> Unit,
+    onToggleSpeak: () -> Unit,
+    micUsable: Boolean,
     modifier: Modifier = Modifier,
 ) {
     var input by remember { mutableStateOf("") }
@@ -70,6 +75,9 @@ fun ChatScreen(
                 )
             }
             Row {
+                TextButton(onClick = onToggleSpeak) {
+                    Text(if (ui.speakReplies) "Awaaz on" else "Awaaz off")
+                }
                 TextButton(onClick = onBenchmark, enabled = !ui.busy && !ui.generating) {
                     Text("Speed")
                 }
@@ -106,11 +114,36 @@ fun ChatScreen(
             }
         }
 
+        if (ui.listening || ui.voiceNote != null) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp)) {
+                ui.voiceNote?.let {
+                    Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                }
+                if (ui.heardSoFar.isNotBlank()) {
+                    Text(
+                        ui.heardSoFar,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+
         Row(
             Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            if (micUsable) {
+                if (ui.listening) {
+                    Button(onClick = onStopListening) { Text("Sun raha…") }
+                } else {
+                    OutlinedButton(
+                        onClick = onListen,
+                        enabled = !ui.busy && !ui.generating,
+                    ) { Text("🎤") }
+                }
+            }
             OutlinedTextField(
                 value = input,
                 onValueChange = { input = it },

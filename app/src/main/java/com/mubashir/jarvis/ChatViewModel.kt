@@ -10,6 +10,8 @@ import com.mubashir.jarvis.model.DownloadState
 import com.mubashir.jarvis.model.InstalledModel
 import com.mubashir.jarvis.model.ModelManager
 import com.mubashir.jarvis.model.ModelSpec
+import com.mubashir.jarvis.voice.Speaker
+import com.mubashir.jarvis.voice.VoiceInput
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,6 +35,12 @@ data class UiState(
     val downloadingSpec: ModelSpec? = null,
     val busy: Boolean = false,
     val generating: Boolean = false,
+    val listening: Boolean = false,
+    /** What the recogniser thinks it heard so far, shown while the user talks. */
+    val heardSoFar: String = "",
+    val speaking: Boolean = false,
+    val speakReplies: Boolean = true,
+    val voiceNote: String? = null,
     val benchmark: String? = null,
     val error: String? = null,
 )
@@ -41,6 +49,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     private val models = ModelManager(app)
     private val engine = JarvisEngine(app)
+    private val speaker = Speaker(app)
+    private val voice = VoiceInput(app)
 
     private val _ui = MutableStateFlow(UiState())
     val ui: StateFlow<UiState> = _ui.asStateFlow()
@@ -52,9 +62,70 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     val capabilities = DeviceCapabilities.read(app)
 
+    private var listening: Job? = null
+
     init {
         refreshInstalled()
+        viewModelScope.launch {
+            speaker.speaking.collect { on -> _ui.update { it.copy(speaking = on) } }
+        }
     }
+
+    fun micAvailable(): Boolean = voice.isAvailable()
+
+    fun hasMicPermission(): Boolean = voice.hasMicPermission()
+
+    fun toggleSpeakReplies() {
+        val on = !_ui.value.speakReplies
+        if (!on) speaker.stop()
+        _ui.update { it.copy(speakReplies = on) }
+    }
+
+    /** Listens for one utterance and sends it as a prompt. */
+    fun startListening() {
+        if (_ui.value.listening || _ui.value.generating || _ui.value.busy) return
+        speaker.stop()
+        _ui.update { it.copy(listening = true, heardSoFar = "", voiceNote = null, error = null) }
+
+        listening = viewModelScope.launch {
+            try {
+                voice.listen().collect { event ->
+                    when (event) {
+                        is VoiceInput.Event.Listening ->
+                            _ui.update { it.copy(voiceNote = "Sun raha hoon…") }
+
+                        is VoiceInput.Event.Partial ->
+                            _ui.update { it.copy(heardSoFar = event.text) }
+
+                        is VoiceInput.Event.Heard -> {
+                            _ui.update {
+                                it.copy(listening = false, heardSoFar = "", voiceNote = null)
+                            }
+                            send(event.text)
+                        }
+
+                        is VoiceInput.Event.Failed ->
+                            _ui.update {
+                                it.copy(listening = false, heardSoFar = "", voiceNote = event.reason)
+                            }
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                _ui.update { it.copy(listening = false, error = describeFailure(e)) }
+            }
+            _ui.update { it.copy(listening = false) }
+        }
+    }
+
+    fun stopListening() {
+        listening?.cancel()
+        listening = null
+        _ui.update { it.copy(listening = false, heardSoFar = "", voiceNote = null) }
+    }
+
+    fun stopSpeaking() = speaker.stop()
 
     fun refreshInstalled() {
         _ui.update { it.copy(installed = models.installed()) }
@@ -173,12 +244,14 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: Throwable) {
                 _ui.update { it.copy(error = describeFailure(e)) }
             }
+            val answer = reply.toString()
             _ui.update { s ->
                 s.copy(
-                    messages = s.messages.replaceLast(reply.toString().ifBlank { "…" }, false),
+                    messages = s.messages.replaceLast(answer.ifBlank { "…" }, false),
                     generating = false,
                 )
             }
+            if (_ui.value.speakReplies && answer.isNotBlank()) speaker.speak(answer)
         }
     }
 
@@ -210,6 +283,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun dismissError() = _ui.update { it.copy(error = null) }
 
     override fun onCleared() {
+        speaker.shutdown()
         engine.destroy()
         super.onCleared()
     }

@@ -1,5 +1,6 @@
 package com.mubashir.jarvis
 
+import android.Manifest
 import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
@@ -65,6 +66,16 @@ private fun JarvisApp(modifier: Modifier = Modifier) {
         if (uri != null) vm.import(uri, context.displayNameOf(uri))
     }
 
+    // The mic button asks for permission the first time, then listens. Granting
+    // it mid-session has to flip this back on without a restart.
+    var micGranted by remember { mutableStateOf(vm.hasMicPermission()) }
+    val micPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        micGranted = granted
+        if (granted) vm.startListening()
+    }
+
     // Leave the picker once a model is actually loaded. As an effect, not a
     // write during composition.
     LaunchedEffect(ui.loadedModel, ui.busy) {
@@ -90,6 +101,13 @@ private fun JarvisApp(modifier: Modifier = Modifier) {
                 onStop = vm::stopGenerating,
                 onBenchmark = vm::benchmark,
                 onChangeModel = { showSetup = true },
+                onListen = {
+                    if (micGranted) vm.startListening()
+                    else micPermission.launch(Manifest.permission.RECORD_AUDIO)
+                },
+                onStopListening = vm::stopListening,
+                onToggleSpeak = vm::toggleSpeakReplies,
+                micUsable = vm.micAvailable(),
             )
         }
 

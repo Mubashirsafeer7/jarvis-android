@@ -4,7 +4,8 @@ Ek personal assistant jo **poori tarah aapke phone ke andar** chalta hai.
 Koi API key nahi, koi cloud nahi, koi subscription nahi, koi rate limit nahi.
 Internet band ho tab bhi kaam karta hai.
 
-> **Status:** Phase 1 — offline LLM chalta hai, text chat kaam karti hai. Awaaz aage aa rahi hai.
+> **Status:** Phase 2a — offline LLM + awaaz. Bol kar poochein, sun kar jawab milta hai.
+> Wake word ("Jarvis" bol kar jagana) abhi baaqi hai.
 
 ---
 
@@ -13,7 +14,7 @@ Internet band ho tab bhi kaam karta hai.
 | | |
 |---|---|
 | 🧠 **Dimaag** | On-device LLM (llama.cpp + GGUF). Model phone ke andar, offline. |
-| 🎙️ **Kaan** | "Jarvis" wake word + offline speech-to-text (Vosk). |
+| 🎙️ **Kaan** | Offline speech-to-text — Android ka on-device recognizer. |
 | 🗣️ **Zubaan** | Android ka built-in TTS — offline bolta hai. |
 | ✋ **Haath** | Call, SMS, koi bhi app kholna, torch, volume, alarm, battery. |
 | 👁️ **Aankhein** | Location, calendar, notifications padhna. |
@@ -76,13 +77,26 @@ hamesha kaam karta hai.
 
 **Speed** button dabakar apne phone ka asli tokens/sec dekh sakte hain.
 
+## Awaaz se baat karna
+
+Chat screen par **🎤** dabayein → boliye → Jarvis sun kar jawab dega, aur bol kar bhi sunayega.
+
+- Pehli baar microphone ki ijazat maangi jayegi
+- **Awaaz on/off** button se jawab bolna band kar sakte hain
+- Sab kuch phone ke andar — recognizer aur TTS dono offline chalte hain
+
+Agar "recognizer ne internet maanga" jaisa message aaye, to phone ki speech
+services mein offline language pack install nahi hai: Settings → System →
+Languages & input → On-device speech recognition → English (India) add karein.
+
 ---
 
 ## Roadmap
 
 - [x] **Phase 0** — project scaffold, CI se APK build, device detect screen
 - [x] **Phase 1** — llama.cpp + GGUF model, offline text chat
-- [ ] **Phase 2** — Vosk STT + TTS + "Jarvis" wake word + background service
+- [x] **Phase 2a** — offline STT + TTS, mic button se baat
+- [ ] **Phase 2b** — "Jarvis" wake word + background service
 - [ ] **Phase 3** — call / SMS / app kholna / device control
 - [ ] **Phase 4** — location, calendar, notifications
 - [ ] **Phase 5** — settings, polish
