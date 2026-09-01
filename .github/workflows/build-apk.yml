@@ -6,6 +6,13 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Three runs of this ended up in flight at once and starved each other of
+# runner capacity — a lint step that normally takes seven minutes sat at
+# twenty. Only the newest commit on a branch is worth building.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
