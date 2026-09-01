@@ -38,6 +38,54 @@ jobs:
           fi
           echo "NDK ready at $ANDROID_HOME/ndk/$ndk"
 
+      # Written only when the secret exists. Until it does the key committed to
+      # the repository is used, so this can land before the secret does without
+      # breaking the build or changing the signature.
+      - name: Restore signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEYSTORE_BASE64:-}" ]; then
+            echo "No KEYSTORE_BASE64 secret; using the key committed to the repo."
+            exit 0
+          fi
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > release.keystore
+          # A truncated or mangled secret would otherwise sail through and
+          # produce an APK signed with a different key — which installs over
+          # nothing and is only discovered on the phone.
+          if [ ! -s release.keystore ]; then
+            echo "::error::KEYSTORE_BASE64 decoded to an empty file."
+            exit 1
+          fi
+          echo "Signing key restored from the repository secret."
+
+      - name: Verify the model download links still work
+        run: |
+          set -uo pipefail
+          # These hosts are unreachable from where this project is written, so
+          # the URLs in the catalog cannot be checked there. A dead link is only
+          # discovered as a failed multi-gigabyte download otherwise.
+          # downloadUrl is written as two concatenated literals, so join the
+          # file's lines before matching.
+          urls=$(tr -d '\n' < app/src/main/java/com/mubashir/jarvis/model/ModelCatalog.kt \
+            | sed 's/" *+ *"//g' \
+            | grep -oE 'https://[^"]+\.gguf[^"]*' | sort -u)
+          if [ -z "$urls" ]; then
+            echo "::error::No model URLs found to check."
+            exit 1
+          fi
+          fail=0
+          while IFS= read -r url; do
+            [ -n "$url" ] || continue
+            code=$(curl -sIL -o /dev/null -w '%{http_code}' --max-time 60 "$url" || echo 000)
+            case "$code" in
+              200|302) echo "ok   $code  $url" ;;
+              *) echo "::error::$code for $url"; fail=1 ;;
+            esac
+          done <<< "$urls"
+          exit $fail
+
       - name: Unit tests
         run: ./gradlew testDebugUnitTest --no-daemon
 
@@ -45,7 +93,10 @@ jobs:
         run: ./gradlew lintDebug --no-daemon
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug --no-daemon
+        run: |
+          ./gradlew assembleDebug --no-daemon \
+            -PjarvisVersionCode=${{ github.run_number }} \
+            -PjarvisVersionName=0.3.${{ github.run_number }}
 
       # ggml dlopens its CPU backends out of the app's native library directory,
       # which is only populated when the libraries are extracted at install
@@ -68,6 +119,37 @@ jobs:
             grep -o 'extractNativeLibs="[^"]*"' "$manifest" || echo "(attribute absent entirely)"
             exit 1
           fi
+
+      # The whole point of a fixed key is that an update installs over the last
+      # build. A secret that decoded to the wrong bytes, or a silent fall back to
+      # AGP's own debug key, produces a green build and an APK that will not
+      # install — discovered only on the phone, by which time the fix is an
+      # uninstall that deletes the model.
+      - name: Check the APK is signed with the expected key
+        run: |
+          set -uo pipefail
+          expected="4662:46B3:E723:650A:12A5:A82F:A112:4D1B:2CE7:D789:15BC:9A9E:70B2:8419:A72E:955B"
+          apk=$(find app/build/outputs/apk/debug -name '*.apk' -print -quit)
+          if [ -z "$apk" ]; then
+            echo "::error::No APK was produced."
+            exit 1
+          fi
+          apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner -print | sort | tail -1)
+          if [ -z "$apksigner" ]; then
+            echo "::error::apksigner not found."
+            exit 1
+          fi
+          got=$("$apksigner" verify --print-certs "$apk" \
+            | grep -i 'SHA-256 digest' | head -1 | awk '{print $NF}' \
+            | tr -d ':' | tr 'a-f' 'A-F')
+          want=$(printf '%s' "$expected" | tr -d ':')
+          if [ "$got" != "$want" ]; then
+            echo "::error::APK signed with an unexpected key."
+            echo "  expected $want"
+            echo "  got      $got"
+            exit 1
+          fi
+          echo "ok  signed with the expected key"
 
       # Upload before the alignment check so a problem there still leaves an
       # installable APK to look at.
@@ -104,15 +186,17 @@ jobs:
           fi
           echo "Found $(printf '%s\n' "$libs" | wc -l) native libraries"
 
-          readelf=""
-          for candidate in \
-            "${ANDROID_NDK_ROOT:-}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf" \
-            "$(command -v llvm-readelf || true)" \
-            "$(command -v readelf || true)"; do
-            if [ -n "$candidate" ] && [ -x "$candidate" ]; then readelf="$candidate"; break; fi
-          done
-          if [ -z "$readelf" ]; then
-            echo "::error::No readelf found to verify alignment."
+          # Pinned to the NDK this workflow installed. GNU readelf wraps each
+          # LOAD over two lines and the parse below reads the wrong field from
+          # it, reporting every library as misaligned — so falling back to
+          # whatever readelf is on PATH produces a confident, wrong answer.
+          ndk=$(sed -n 's/^ndk = "\(.*\)"/\1/p' gradle/libs.versions.toml)
+          readelf="$ANDROID_HOME/ndk/$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
+          if [ ! -x "$readelf" ]; then
+            readelf="$(command -v llvm-readelf || true)"
+          fi
+          if [ -z "$readelf" ] || [ ! -x "$readelf" ]; then
+            echo "::error::llvm-readelf not found; refusing to guess with GNU readelf."
             exit 1
           fi
           echo "Using $readelf"

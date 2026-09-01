@@ -14,3 +14,11 @@ captures/
 *.gguf
 *.task
 models/
+
+# Signing keys never belong in the repository. The one still tracked here is
+# being moved into a repository secret and removed from history before this
+# repo is made public.
+*.keystore
+*.jks
+*.p12
+keystore.properties

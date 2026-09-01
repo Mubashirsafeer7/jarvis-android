@@ -13,25 +13,36 @@ android {
         // Held up by :llama — see the note on its minSdk.
         minSdk = 30
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1"
+        // CI passes the run number, so every build is orderable and the
+        // updater can tell a newer APK from the one already installed. A local
+        // build stays at 1 and claims to be a development build.
+        versionCode = (project.findProperty("jarvisVersionCode") as String?)?.toInt() ?: 1
+        versionName = (project.findProperty("jarvisVersionName") as String?) ?: "0.1-dev"
 
         // Only ship the ABI the target device uses. llama.cpp native builds are
         // large, and every phone this app targets is arm64.
         ndk { abiFilters += "arm64-v8a" }
     }
 
+    // One key for every build, so an update installs over the last one instead
+    // of demanding an uninstall — which would take the multi-gigabyte model with
+    // it. AGP otherwise invents a fresh debug key on each CI runner.
+    //
+    // The key comes from a file CI writes out of a repository secret. Until that
+    // secret exists the copy committed here is used, so nothing breaks in
+    // between; once it does, the committed copy is removed from the repository
+    // and its history, before any of this becomes public.
+    val keystoreFromSecret = rootProject.file("release.keystore")
+    val committedKeystore = file("keystore/jarvis.keystore")
+    val signingKeystore = if (keystoreFromSecret.exists()) keystoreFromSecret else committedKeystore
+
     signingConfigs {
-        // A fixed key, committed with the project, so every build installs over
-        // the last one as a normal update. Without it AGP invents a new debug
-        // key on each CI runner, the signatures differ, and updating means
-        // uninstalling — which deletes the multi-gigabyte model with it.
-        // Personal sideloaded app only; never reuse this for a store release.
         create("jarvis") {
-            storeFile = file("keystore/jarvis.keystore")
-            storePassword = "REMOVED-OLD-KEYSTORE-PASSWORD"
-            keyAlias = "jarvis"
-            keyPassword = "REMOVED-OLD-KEYSTORE-PASSWORD"
+            storeFile = signingKeystore
+            storePassword = (project.findProperty("jarvisKeystorePassword") as String?)
+                ?: "REMOVED-OLD-KEYSTORE-PASSWORD"
+            keyAlias = (project.findProperty("jarvisKeyAlias") as String?) ?: "jarvis"
+            keyPassword = (project.findProperty("jarvisKeyPassword") as String?) ?: "REMOVED-OLD-KEYSTORE-PASSWORD"
         }
     }
 
@@ -59,6 +70,9 @@ android {
 
     buildFeatures {
         compose = true
+        // The updater compares the running version against the newest release,
+        // and with this off there is no BuildConfig class to read it from.
+        buildConfig = true
     }
 
     packaging {
