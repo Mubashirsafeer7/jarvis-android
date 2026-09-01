@@ -77,9 +77,30 @@ hamesha kaam karta hai.
 
 **Speed** button dabakar apne phone ka asli tokens/sec dekh sakte hain.
 
+## App update karna
+
+Ab har build **ek hi key** se sign hoti hai, to nayi APK seedha purani ke upar install ho jati
+hai — uninstall karne ki zaroorat nahi, aur model bhi wahin rehta hai.
+
+1. **Actions** → sabse upar wali green run → **Artifacts** → `REMOVED-OLD-KEYSTORE-PASSWORD-apk`
+2. ZIP se APK nikaal kar install karein — bas.
+
+### Model ka backup
+
+Model app ke apne folder mein rehta hai, jise Android **uninstall par delete** kar deta hai (aur
+Android 11+ par koi file manager us folder tak pahunch bhi nahi sakta). Isliye model ke saamne
+**Save** button hai — woh usay `Downloads/Jarvis/` mein copy kar deta hai.
+
+Kabhi app uninstall karni pade, to pehle **Save** dabayein; nayi install ke baad
+**"GGUF file chunein"** se wahi file import kar lein — 2 GB dobara download nahi karna padega.
+
 ## Awaaz se baat karna
 
 Chat screen par **🎤** dabayein → boliye → Jarvis sun kar jawab dega, aur bol kar bhi sunayega.
+
+Bolte waqt poori screen par **arc reactor** aata hai. Woh nakli animation nahi — rings aapke
+microphone ke asli level par khulti aur simatti hain, aur Jarvis ke sochne aur bolne par alag
+harkat karti hain. Tap karke band kar sakte hain.
 
 - Pehli baar microphone ki ijazat maangi jayegi
 - **Awaaz on/off** button se jawab bolna band kar sakte hain

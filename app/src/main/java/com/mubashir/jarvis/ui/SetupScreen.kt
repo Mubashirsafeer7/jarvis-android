@@ -43,6 +43,7 @@ fun SetupScreen(
     onImport: () -> Unit,
     onLoad: (InstalledModel) -> Unit,
     onDelete: (InstalledModel) -> Unit,
+    onExport: (InstalledModel) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -67,6 +68,14 @@ fun SetupScreen(
 
         if (ui.installed.isNotEmpty()) {
             SectionCard("PHONE MEIN MOJOOD") {
+                Text(
+                    "\"Save\" model ko Downloads/Jarvis mein copy karta hai. App uninstall karne " +
+                        "par phone ka apna model folder mit jata hai — copy bach jati hai, aur " +
+                        "usay neeche se dobara import kar sakte hain.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(12.dp))
                 ui.installed.forEachIndexed { i, model ->
                     if (i > 0) HorizontalDivider(Modifier.padding(vertical = 12.dp))
                     Row(
@@ -81,6 +90,10 @@ fun SetupScreen(
                                 fontFamily = FontFamily.Monospace,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
+                        TextButton(
+                            onClick = { onExport(model) },
+                            enabled = !ui.busy,
+                        ) { Text("Save") }
                         TextButton(onClick = { onDelete(model) }) { Text("Delete") }
                         Button(onClick = { onLoad(model) }, enabled = !ui.busy) { Text("Load") }
                     }

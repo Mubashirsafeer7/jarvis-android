@@ -93,6 +93,7 @@ private fun JarvisApp(modifier: Modifier = Modifier) {
                 onImport = { picker.launch(arrayOf("*/*")) },
                 onLoad = { vm.load(it.file) },
                 onDelete = vm::delete,
+                onExport = vm::export,
             )
         } else {
             ChatScreen(
@@ -107,6 +108,7 @@ private fun JarvisApp(modifier: Modifier = Modifier) {
                 },
                 onStopListening = vm::stopListening,
                 onToggleSpeak = vm::toggleSpeakReplies,
+                onExitVoice = vm::exitVoiceMode,
                 micUsable = vm.micAvailable(),
             )
         }
@@ -126,11 +128,12 @@ private fun JarvisApp(modifier: Modifier = Modifier) {
         }
     }
 
-    ui.error?.let { message ->
+    val dialog = ui.error?.let { "Masla" to it } ?: ui.notice?.let { "Ho gaya" to it }
+    dialog?.let { (title, message) ->
         AlertDialog(
             onDismissRequest = vm::dismissError,
             confirmButton = { TextButton(onClick = vm::dismissError) { Text("Theek hai") } },
-            title = { Text("Masla") },
+            title = { Text(title) },
             text = { Text(message) },
         )
     }

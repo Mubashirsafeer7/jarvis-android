@@ -33,6 +33,9 @@ class VoiceInput(private val context: Context) {
         data class Partial(val text: String) : Event
 
         data class Heard(val text: String) : Event
+
+        /** Live microphone loudness in dB, for driving the reactor. */
+        data class Level(val rmsDb: Float) : Event
         data class Failed(val reason: String) : Event
     }
 
@@ -94,8 +97,11 @@ class VoiceInput(private val context: Context) {
                 close()
             }
 
+            override fun onRmsChanged(rmsdB: Float) {
+                trySend(Event.Level(rmsdB))
+            }
+
             override fun onBeginningOfSpeech() = Unit
-            override fun onRmsChanged(rmsdB: Float) = Unit
             override fun onBufferReceived(buffer: ByteArray?) = Unit
             override fun onEndOfSpeech() = Unit
             override fun onEvent(eventType: Int, params: Bundle?) = Unit

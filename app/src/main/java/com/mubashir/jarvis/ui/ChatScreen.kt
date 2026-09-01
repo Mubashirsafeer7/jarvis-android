@@ -1,11 +1,14 @@
 package com.mubashir.jarvis.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -34,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -50,6 +54,7 @@ fun ChatScreen(
     onListen: () -> Unit,
     onStopListening: () -> Unit,
     onToggleSpeak: () -> Unit,
+    onExitVoice: () -> Unit,
     micUsable: Boolean,
     modifier: Modifier = Modifier,
 ) {
@@ -60,12 +65,27 @@ fun ChatScreen(
         if (ui.messages.isNotEmpty()) listState.animateScrollToItem(ui.messages.lastIndex)
     }
 
-    Column(modifier.fillMaxSize().imePadding()) {
+    val reactorState = when {
+        ui.listening -> ReactorState.Listening
+        ui.generating -> ReactorState.Thinking
+        ui.speaking -> ReactorState.Speaking
+        else -> ReactorState.Idle
+    }
+
+    Box(modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize().imePadding()) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+            ArcReactor(
+                state = reactorState,
+                level = ui.micLevel,
+                modifier = Modifier.size(38.dp),
+            )
+            Spacer(Modifier.width(10.dp))
             Column {
                 Text("JARVIS", fontSize = 18.sp, color = MaterialTheme.colorScheme.primary)
                 Text(
@@ -73,6 +93,7 @@ fun ChatScreen(
                     fontSize = 11.sp, fontFamily = FontFamily.Monospace,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
             }
             Row {
                 TextButton(onClick = onToggleSpeak) {
@@ -164,6 +185,60 @@ fun ChatScreen(
                     enabled = input.isNotBlank() && !ui.busy,
                 ) { Text("Send") }
             }
+        }
+    }
+
+        if (ui.voiceMode) {
+            VoiceOverlay(
+                state = reactorState,
+                level = ui.micLevel,
+                heard = ui.heardSoFar,
+                note = ui.voiceNote,
+                reply = ui.messages.lastOrNull()?.takeIf { !it.fromUser }?.text.orEmpty(),
+                onDismiss = onExitVoice,
+            )
+        }
+    }
+}
+
+/**
+ * The reactor taking over the screen for the length of a spoken exchange —
+ * what the user asked for: talk to it and this is what you look at.
+ */
+@Composable
+private fun VoiceOverlay(
+    state: ReactorState,
+    level: Float,
+    heard: String,
+    note: String?,
+    reply: String,
+    onDismiss: () -> Unit,
+) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.97f))
+            .clickable(onClick = onDismiss),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(28.dp),
+            modifier = Modifier.padding(32.dp),
+        ) {
+            ArcReactor(state = state, level = level, modifier = Modifier.size(260.dp))
+
+            Text(
+                text = when (state) {
+                    ReactorState.Listening -> heard.ifBlank { note ?: "Sun raha hoon…" }
+                    ReactorState.Thinking -> "Soch raha hoon…"
+                    ReactorState.Speaking -> reply
+                    ReactorState.Idle -> note ?: "Tap to close"
+                },
+                fontSize = 16.sp,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
         }
     }
 }

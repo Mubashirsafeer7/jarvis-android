@@ -1,8 +1,11 @@
 package com.mubashir.jarvis.model
 
 import android.app.DownloadManager
+import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
+import android.os.Environment
+import android.provider.MediaStore
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -62,6 +65,50 @@ class ModelManager(private val context: Context) {
     fun usableSpaceBytes(): Long = modelsDir.usableSpace
 
     fun delete(model: InstalledModel): Boolean = model.file.delete()
+
+    /**
+     * Copies a model into Downloads/Jarvis.
+     *
+     * Models live in the app's external files directory, which Android deletes
+     * on uninstall — and from Android 11 no file manager can reach it either, so
+     * the file cannot be rescued from outside. A copy in Downloads survives both
+     * and can be handed straight back through [import].
+     */
+    fun exportToDownloads(model: InstalledModel): Result<String> = runCatching {
+        val free = Environment.getExternalStorageDirectory().usableSpace
+        if (free < model.sizeBytes) {
+            error("Storage kam hai — %.1f GB chahiye".format(model.sizeGb))
+        }
+
+        val resolver = context.contentResolver
+        val pending = ContentValues().apply {
+            put(MediaStore.Downloads.DISPLAY_NAME, model.file.name)
+            put(MediaStore.Downloads.MIME_TYPE, GGUF_MIME)
+            put(MediaStore.Downloads.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/$EXPORT_DIR")
+            put(MediaStore.Downloads.IS_PENDING, 1)
+        }
+        val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, pending)
+            ?: error("Downloads mein file nahi banayi ja saki")
+
+        try {
+            resolver.openOutputStream(uri).use { out ->
+                requireNotNull(out) { "Downloads mein likha nahi ja saka" }
+                model.file.inputStream().use { it.copyTo(out) }
+            }
+        } catch (e: Throwable) {
+            // A half-written export is worse than none: it looks importable.
+            resolver.delete(uri, null, null)
+            throw e
+        }
+
+        resolver.update(
+            uri,
+            ContentValues().apply { put(MediaStore.Downloads.IS_PENDING, 0) },
+            null,
+            null,
+        )
+        "Downloads/$EXPORT_DIR/${model.file.name}"
+    }
 
     fun isGguf(file: File): Boolean = GgufFile.isGguf(file)
 
@@ -165,6 +212,8 @@ class ModelManager(private val context: Context) {
 
     private companion object {
         const val MODELS_DIR = "models"
+        const val EXPORT_DIR = "Jarvis"
+        const val GGUF_MIME = "application/octet-stream"
         const val POLL_INTERVAL_MS = 500L
     }
 }

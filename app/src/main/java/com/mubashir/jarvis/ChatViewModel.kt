@@ -10,10 +10,13 @@ import com.mubashir.jarvis.model.DownloadState
 import com.mubashir.jarvis.model.InstalledModel
 import com.mubashir.jarvis.model.ModelManager
 import com.mubashir.jarvis.model.ModelSpec
+import com.mubashir.jarvis.voice.MicLevel
 import com.mubashir.jarvis.voice.Speaker
 import com.mubashir.jarvis.voice.VoiceInput
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -36,12 +39,17 @@ data class UiState(
     val busy: Boolean = false,
     val generating: Boolean = false,
     val listening: Boolean = false,
+    /** Smoothed microphone loudness, 0..1, driving the reactor while listening. */
+    val micLevel: Float = 0f,
+    /** True from the moment the mic opens until the spoken reply ends. */
+    val voiceMode: Boolean = false,
     /** What the recogniser thinks it heard so far, shown while the user talks. */
     val heardSoFar: String = "",
     val speaking: Boolean = false,
     val speakReplies: Boolean = true,
     val voiceNote: String? = null,
     val benchmark: String? = null,
+    val notice: String? = null,
     val error: String? = null,
 )
 
@@ -51,6 +59,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private val engine = JarvisEngine(app)
     private val speaker = Speaker(app)
     private val voice = VoiceInput(app)
+    private val micLevel = MicLevel()
 
     private val _ui = MutableStateFlow(UiState())
     val ui: StateFlow<UiState> = _ui.asStateFlow()
@@ -85,7 +94,13 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun startListening() {
         if (_ui.value.listening || _ui.value.generating || _ui.value.busy) return
         speaker.stop()
-        _ui.update { it.copy(listening = true, heardSoFar = "", voiceNote = null, error = null) }
+        micLevel.reset()
+        _ui.update {
+            it.copy(
+                listening = true, voiceMode = true, heardSoFar = "", micLevel = 0f,
+                voiceNote = null, error = null,
+            )
+        }
 
         listening = viewModelScope.launch {
             try {
@@ -97,11 +112,16 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                         is VoiceInput.Event.Partial ->
                             _ui.update { it.copy(heardSoFar = event.text) }
 
+                        is VoiceInput.Event.Level -> {
+                            val level = micLevel.update(event.rmsDb)
+                            _ui.update { it.copy(micLevel = level) }
+                        }
+
                         is VoiceInput.Event.Heard -> {
                             _ui.update {
                                 it.copy(listening = false, heardSoFar = "", voiceNote = null)
                             }
-                            send(event.text)
+                            send(event.text, fromVoice = true)
                         }
 
                         is VoiceInput.Event.Failed ->
@@ -122,10 +142,18 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun stopListening() {
         listening?.cancel()
         listening = null
-        _ui.update { it.copy(listening = false, heardSoFar = "", voiceNote = null) }
+        micLevel.reset()
+        _ui.update { it.copy(listening = false, heardSoFar = "", micLevel = 0f, voiceNote = null) }
     }
 
     fun stopSpeaking() = speaker.stop()
+
+    /** Closes the reactor overlay and silences anything still being said. */
+    fun exitVoiceMode() {
+        speaker.stop()
+        stopListening()
+        _ui.update { it.copy(voiceMode = false) }
+    }
 
     fun refreshInstalled() {
         _ui.update { it.copy(installed = models.installed()) }
@@ -217,9 +245,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun send(text: String) {
+    fun send(text: String, fromVoice: Boolean = false) {
         val prompt = text.trim()
         if (prompt.isEmpty() || _ui.value.generating) return
+        if (!fromVoice) _ui.update { it.copy(voiceMode = false) }
 
         _ui.update {
             it.copy(
@@ -280,7 +309,23 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun dismissError() = _ui.update { it.copy(error = null) }
+    /** Copies a model to Downloads so an uninstall cannot take it with it. */
+    fun export(model: InstalledModel) {
+        viewModelScope.launch {
+            _ui.update { it.copy(busy = true, error = null, notice = null) }
+            val result = withContext(Dispatchers.IO) { models.exportToDownloads(model) }
+            result
+                .onSuccess { path ->
+                    _ui.update { it.copy(busy = false, notice = "Copy ho gaya: $path") }
+                }
+                .onFailure { e ->
+                    if (e is CancellationException) throw e
+                    _ui.update { it.copy(busy = false, error = describeFailure(e)) }
+                }
+        }
+    }
+
+    fun dismissError() = _ui.update { it.copy(error = null, notice = null) }
 
     override fun onCleared() {
         speaker.shutdown()

@@ -1,41 +1,36 @@
 package com.mubashir.jarvis.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-private val Cyan = Color(0xFF4DD0E1)
-private val CyanBright = Color(0xFFB2EBF2)
-private val DeepNavy = Color(0xFF0B1622)
-private val Panel = Color(0xFF13212F)
+private val Amber = Color(0xFFFF9D2E)
+private val AmberBright = Color(0xFFFFC46B)
+private val Navy = Color(0xFF060B14)
+private val Panel = Color(0xFF0E1622)
+private val Ink = Color(0xFFF3E7D6)
+private val Muted = Color(0xFFB39A7C)
 
-private val DarkColors = darkColorScheme(
-    primary = Cyan,
-    onPrimary = DeepNavy,
-    secondary = CyanBright,
-    background = DeepNavy,
-    onBackground = Color(0xFFE3F2F5),
+private val Reactor = darkColorScheme(
+    primary = Amber,
+    onPrimary = Navy,
+    secondary = AmberBright,
+    onSecondary = Navy,
+    background = Navy,
+    onBackground = Ink,
     surface = Panel,
-    onSurface = Color(0xFFE3F2F5),
+    onSurface = Ink,
     surfaceVariant = Panel,
-    onSurfaceVariant = Color(0xFF9FB6C4),
+    onSurfaceVariant = Muted,
+    outline = Color(0xFF3A2A18),
 )
 
-private val LightColors = lightColorScheme(
-    primary = Color(0xFF00778A),
-    secondary = Color(0xFF00606F),
-)
-
+/**
+ * One palette, always dark. A reactor glowing amber only reads against a dark
+ * ground, so there is no light variant to fall back to.
+ */
 @Composable
-fun JarvisTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    content: @Composable () -> Unit,
-) {
-    MaterialTheme(
-        colorScheme = if (darkTheme) DarkColors else LightColors,
-        content = content,
-    )
+fun JarvisTheme(content: @Composable () -> Unit) {
+    MaterialTheme(colorScheme = Reactor, content = content)
 }

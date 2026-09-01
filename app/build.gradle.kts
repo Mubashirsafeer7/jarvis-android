@@ -21,8 +21,26 @@ android {
         ndk { abiFilters += "arm64-v8a" }
     }
 
+    signingConfigs {
+        // A fixed key, committed with the project, so every build installs over
+        // the last one as a normal update. Without it AGP invents a new debug
+        // key on each CI runner, the signatures differ, and updating means
+        // uninstalling — which deletes the multi-gigabyte model with it.
+        // Personal sideloaded app only; never reuse this for a store release.
+        create("jarvis") {
+            storeFile = file("keystore/jarvis.keystore")
+            storePassword = "REMOVED-OLD-KEYSTORE-PASSWORD"
+            keyAlias = "jarvis"
+            keyPassword = "REMOVED-OLD-KEYSTORE-PASSWORD"
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("jarvis")
+        }
         release {
+            signingConfig = signingConfigs.getByName("jarvis")
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
