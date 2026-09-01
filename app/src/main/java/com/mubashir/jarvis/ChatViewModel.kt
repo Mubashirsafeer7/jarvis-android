@@ -8,6 +8,7 @@ import com.arm.aichat.InferenceEngine
 import com.mubashir.jarvis.data.BrainChoice
 import com.mubashir.jarvis.data.StoredMessage
 import com.mubashir.jarvis.update.AvailableUpdate
+import com.mubashir.jarvis.update.UpdateScheduler
 import com.mubashir.jarvis.model.DownloadState
 import android.Manifest
 import android.content.pm.PackageManager
@@ -834,6 +835,19 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun canInstallUpdates(): Boolean = runtime.installer.canInstall()
+
+    fun notifyUpdates(): Boolean = settings.settings.value.notifyUpdates
+
+    fun canNotify(): Boolean = runtime.notifier.canNotify()
+
+    fun setNotifyUpdates(on: Boolean) {
+        settings.setNotifyUpdates(on)
+        if (on) {
+            UpdateScheduler.schedule(getApplication())
+        } else {
+            UpdateScheduler.cancel(getApplication())
+        }
+    }
 
     fun allowInstallsIntent() = runtime.installer.allowInstallsIntent()
 

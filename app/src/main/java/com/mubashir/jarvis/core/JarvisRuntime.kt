@@ -15,6 +15,7 @@ import com.mubashir.jarvis.model.ModelManager
 import com.mubashir.jarvis.tools.Contacts
 import com.mubashir.jarvis.tools.ToolRunner
 import com.mubashir.jarvis.update.ApkInstaller
+import com.mubashir.jarvis.update.UpdateNotifier
 import com.mubashir.jarvis.update.UpdateRepository
 import com.mubashir.jarvis.voice.Speaker
 import com.mubashir.jarvis.voice.VoiceInput
@@ -47,6 +48,7 @@ class JarvisRuntime(context: Context) : ComponentCallbacks2 {
     val contacts = Contacts(app)
     val updates = UpdateRepository(app)
     val installer = ApkInstaller(app)
+    val notifier = UpdateNotifier(app)
     val capabilities = DeviceCapabilities.read(app)
 
     private val localBrain = LocalBrain(engine)

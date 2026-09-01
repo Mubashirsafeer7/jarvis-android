@@ -43,14 +43,29 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mubashir.jarvis.ui.ChatScreen
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
 import com.mubashir.jarvis.tools.Action
 import com.mubashir.jarvis.tools.Ask
 import com.mubashir.jarvis.ui.SettingsScreen
 import com.mubashir.jarvis.ui.SetupScreen
 import com.mubashir.jarvis.ui.WakingScreen
 import com.mubashir.jarvis.ui.theme.JarvisTheme
+import com.mubashir.jarvis.update.UpdateNotifier
 
 class MainActivity : ComponentActivity() {
+
+    /** Bumped when an update notification opens the app, so Compose reacts. */
+    private val openUpdates = mutableIntStateOf(0)
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra(UpdateNotifier.EXTRA_OPEN_UPDATES, false)) {
+            openUpdates.intValue++
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // The app is dark whatever the phone is set to, so say so explicitly.
         // The no-argument form follows the system setting, which on a phone in
@@ -59,6 +74,9 @@ class MainActivity : ComponentActivity() {
         val bars = SystemBarStyle.dark(NAVY_ARGB)
         enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
         super.onCreate(savedInstanceState)
+        if (intent?.getBooleanExtra(UpdateNotifier.EXTRA_OPEN_UPDATES, false) == true) {
+            openUpdates.intValue++
+        }
         setContent {
             JarvisTheme {
                 // No Scaffold inset padding at the root: it stopped the voice
@@ -70,7 +88,7 @@ class MainActivity : ComponentActivity() {
                         .fillMaxSize()
                         .background(MaterialTheme.colorScheme.background),
                 ) {
-                    JarvisApp()
+                    JarvisApp(openUpdates = openUpdates.intValue)
                 }
             }
         }
@@ -84,12 +102,34 @@ private const val NAVY_ARGB = 0xFF060B14.toInt()
 private enum class Screen { Chat, Models, Settings }
 
 @Composable
-private fun JarvisApp(modifier: Modifier = Modifier) {
+private fun JarvisApp(openUpdates: Int = 0, modifier: Modifier = Modifier) {
     val vm: ChatViewModel = viewModel()
     val ui by vm.ui.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     var screen by rememberSaveable { mutableStateOf(Screen.Chat) }
+
+    // Notifications are asked for the first time the app is opened rather than
+    // buried in settings — the model download reports its progress through one
+    // too, and without this that notification was being dropped in silence.
+    val notificationPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* Declining is a fine answer; the app works either way. */ }
+
+    LaunchedEffect(Unit) {
+        if (!vm.canNotify()) {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    // Arriving from an update notification lands on the update, already checked,
+    // rather than on a settings screen with a button to press.
+    LaunchedEffect(openUpdates) {
+        if (openUpdates > 0) {
+            screen = Screen.Settings
+            vm.checkForUpdate()
+        }
+    }
 
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -178,6 +218,9 @@ private fun JarvisApp(modifier: Modifier = Modifier) {
                 onSetKeepRescueCopy = vm::setKeepRescueCopy,
                 phoneControl = vm.phoneControl(),
                 onSetPhoneControl = vm::setPhoneControl,
+                notifyUpdates = vm.notifyUpdates(),
+                onSetNotifyUpdates = vm::setNotifyUpdates,
+                notificationsBlocked = !vm.canNotify(),
                 canInstallUpdates = vm.canInstallUpdates(),
                 onCheckUpdate = vm::checkForUpdate,
                 onDownloadUpdate = vm::downloadUpdate,

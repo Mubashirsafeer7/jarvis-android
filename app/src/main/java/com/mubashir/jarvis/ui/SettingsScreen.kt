@@ -71,6 +71,9 @@ fun SettingsScreen(
     onSetKeepRescueCopy: (Boolean) -> Unit,
     phoneControl: Boolean,
     onSetPhoneControl: (Boolean) -> Unit,
+    notifyUpdates: Boolean,
+    onSetNotifyUpdates: (Boolean) -> Unit,
+    notificationsBlocked: Boolean,
     canInstallUpdates: Boolean,
     onCheckUpdate: () -> Unit,
     onDownloadUpdate: () -> Unit,
@@ -297,6 +300,22 @@ fun SettingsScreen(
         }
 
         SettingsCard(title = stringResource(R.string.settings_updates)) {
+            SwitchRow(
+                label = stringResource(R.string.settings_notify_updates),
+                detail = stringResource(R.string.settings_notify_updates_detail),
+                checked = notifyUpdates,
+                enabled = true,
+                onCheckedChange = onSetNotifyUpdates,
+            )
+            if (notifyUpdates && notificationsBlocked) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.settings_notify_blocked),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+            Spacer(Modifier.height(16.dp))
             UpdateBody(
                 state = ui.update,
                 canInstall = canInstallUpdates,

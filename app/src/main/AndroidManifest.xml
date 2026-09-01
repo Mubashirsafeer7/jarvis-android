@@ -26,6 +26,11 @@
     <uses-permission android:name="android.permission.SEND_SMS" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
 
+    <!-- The background update check is scheduled to survive a reboot, which
+         Android only allows with this. A check that stops at the next restart
+         is a check that stops. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <!-- Asking for CALL_PHONE and SEND_SMS otherwise declares that this app
          requires telephony hardware, which quietly excludes tablets and any
          device without a radio. Jarvis is still useful on one; it just cannot
@@ -89,6 +94,12 @@
         <receiver
             android:name=".update.InstallResultReceiver"
             android:exported="false" />
+
+        <!-- Runs a few hundred bytes of update check, twice a day. -->
+        <service
+            android:name=".update.UpdateCheckJob"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
     </application>
 
 </manifest>

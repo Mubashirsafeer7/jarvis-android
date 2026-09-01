@@ -94,6 +94,13 @@
     <string name="settings_updates">UPDATES</string>
     <string name="update_idle">Jarvis can update itself from GitHub. Nothing is downloaded until you say so.</string>
     <string name="update_check">Check for updates</string>
+    <string name="update_notify_title">Jarvis %s is ready</string>
+    <string name="update_notify_body">Tap to see what changed and install it.</string>
+    <string name="update_channel">Updates</string>
+    <string name="update_channel_detail">Tells you when a newer build of Jarvis exists. Nothing downloads on its own.</string>
+    <string name="settings_notify_updates">Tell me about updates</string>
+    <string name="settings_notify_updates_detail">Checks twice a day and puts a notification up when a newer build exists. Nothing is downloaded or installed until you say so.</string>
+    <string name="settings_notify_blocked">Notifications are turned off for Jarvis, so this cannot reach you.</string>
     <string name="update_check_again">Check again</string>
     <string name="update_checking">Checking…</string>
     <string name="update_current">You are on the newest build.</string>
