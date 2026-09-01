@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Jarvis" parent="android:Theme.Material.NoActionBar" />
+    <!-- windowBackground is what the system paints between tapping the icon and
+         Compose drawing its first frame. Without it that gap was the framework's
+         default grey, so every launch opened with a flash of the wrong colour. -->
+    <style name="Theme.Jarvis" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+    </style>
 </resources>

@@ -3,34 +3,74 @@ package com.mubashir.jarvis.ui.theme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
 
-private val Amber = Color(0xFFFF9D2E)
-private val AmberBright = Color(0xFFFFC46B)
-private val Navy = Color(0xFF060B14)
-private val Panel = Color(0xFF0E1622)
-private val Ink = Color(0xFFF3E7D6)
-private val Muted = Color(0xFFB39A7C)
-
+/**
+ * Every Material role is filled in, not just the eleven that happened to be
+ * visible. The ones left unset fell back to Material's baseline purple — which
+ * is why the error dialog, the single surface a user sees when something has
+ * gone wrong, was the one place the app did not look like itself.
+ */
 private val Reactor = darkColorScheme(
-    primary = Amber,
-    onPrimary = Navy,
-    secondary = AmberBright,
-    onSecondary = Navy,
-    background = Navy,
-    onBackground = Ink,
-    surface = Panel,
-    onSurface = Ink,
-    surfaceVariant = Panel,
-    onSurfaceVariant = Muted,
-    outline = Color(0xFF3A2A18),
+    primary = JarvisColors.Amber,
+    onPrimary = JarvisColors.AmberInk,
+    primaryContainer = JarvisColors.AmberDeep,
+    onPrimaryContainer = JarvisColors.Core,
+
+    secondary = JarvisColors.AmberBright,
+    onSecondary = JarvisColors.AmberInk,
+    secondaryContainer = JarvisColors.PanelHighest,
+    onSecondaryContainer = JarvisColors.Ink,
+
+    tertiary = JarvisColors.Cyan,
+    onTertiary = JarvisColors.CyanInk,
+    tertiaryContainer = JarvisColors.CyanInk,
+    onTertiaryContainer = JarvisColors.Cyan,
+
+    background = JarvisColors.Navy,
+    onBackground = JarvisColors.Ink,
+
+    surface = JarvisColors.Panel,
+    onSurface = JarvisColors.Ink,
+    // Distinct from surface on purpose: equal to it, the progress track was
+    // invisible against the card it sat on.
+    surfaceVariant = JarvisColors.PanelHigh,
+    onSurfaceVariant = JarvisColors.Muted,
+    surfaceTint = JarvisColors.Amber,
+
+    surfaceContainerLowest = JarvisColors.PanelLowest,
+    surfaceContainerLow = JarvisColors.PanelLow,
+    surfaceContainer = JarvisColors.Panel,
+    surfaceContainerHigh = JarvisColors.PanelHigh,
+    surfaceContainerHighest = JarvisColors.PanelHighest,
+    surfaceDim = JarvisColors.Navy,
+    surfaceBright = JarvisColors.PanelHighest,
+
+    error = JarvisColors.Ember,
+    onError = JarvisColors.EmberInk,
+    errorContainer = JarvisColors.EmberContainer,
+    onErrorContainer = JarvisColors.OnEmberContainer,
+
+    outline = JarvisColors.Outline,
+    outlineVariant = JarvisColors.OutlineFaint,
+
+    inverseSurface = JarvisColors.Ink,
+    inverseOnSurface = JarvisColors.Navy,
+    inversePrimary = JarvisColors.AmberDeep,
+    scrim = JarvisColors.Navy,
 )
 
 /**
  * One palette, always dark. A reactor glowing amber only reads against a dark
- * ground, so there is no light variant to fall back to.
+ * ground, so there is no light variant to fall back to — which is also why the
+ * Activity has to tell the system its bars are dark rather than letting them
+ * follow the phone's own light/dark setting.
  */
 @Composable
 fun JarvisTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = Reactor, content = content)
+    MaterialTheme(
+        colorScheme = Reactor,
+        typography = JarvisTypography,
+        shapes = JarvisShapes,
+        content = content,
+    )
 }

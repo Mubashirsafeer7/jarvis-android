@@ -1,30 +1,39 @@
 package com.mubashir.jarvis.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -35,22 +44,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.mubashir.jarvis.ChatMessage
+import com.mubashir.jarvis.R
 import com.mubashir.jarvis.UiState
+import com.mubashir.jarvis.ui.components.JarvisIcons
+import androidx.compose.ui.res.stringResource
 
 @Composable
 fun ChatScreen(
     ui: UiState,
     onSend: (String) -> Unit,
     onStop: () -> Unit,
-    onBenchmark: () -> Unit,
-    onChangeModel: () -> Unit,
+    onOpenSettings: () -> Unit,
     onListen: () -> Unit,
     onStopListening: () -> Unit,
     onToggleSpeak: () -> Unit,
@@ -67,126 +76,65 @@ fun ChatScreen(
 
     val reactorState = when {
         ui.listening -> ReactorState.Listening
-        ui.generating -> ReactorState.Thinking
         ui.speaking -> ReactorState.Speaking
+        ui.generating -> ReactorState.Thinking
         else -> ReactorState.Idle
     }
 
+    val modelLabel = ui.installed.firstOrNull { it.file.name == ui.loadedModel }?.displayName
+        ?: ui.loadedModel?.let(::prettyModelName)
+        ?: ""
+
     Box(modifier.fillMaxSize()) {
-    Column(Modifier.fillMaxSize().imePadding()) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+        Column(
+            Modifier
+                .fillMaxSize()
+                // Insets are handled here rather than at the root, so the voice
+                // overlay below can cover the status and navigation bars instead
+                // of stopping short of them in a different shade.
+                .statusBarsPadding()
+                .imePadding(),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-            ArcReactor(
-                state = reactorState,
-                level = ui.micLevel,
-                modifier = Modifier.size(38.dp),
+            ChatHeader(
+                reactorState = reactorState,
+                micLevel = ui.micLevel,
+                modelLabel = modelLabel,
+                speakReplies = ui.speakReplies,
+                onToggleSpeak = onToggleSpeak,
+                onOpenSettings = onOpenSettings,
             )
-            Spacer(Modifier.width(10.dp))
-            Column {
-                Text("JARVIS", fontSize = 18.sp, color = MaterialTheme.colorScheme.primary)
-                Text(
-                    ui.loadedModel ?: "",
-                    fontSize = 11.sp, fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+
+            if (ui.messages.isEmpty()) {
+                EmptyChat(
+                    reactorState = reactorState,
+                    micLevel = ui.micLevel,
+                    onSuggestion = onSend,
+                    modifier = Modifier.weight(1f),
                 )
-            }
-            }
-            Row {
-                TextButton(onClick = onToggleSpeak) {
-                    Text(if (ui.speakReplies) "Awaaz on" else "Awaaz off")
-                }
-                TextButton(onClick = onBenchmark, enabled = !ui.busy && !ui.generating) {
-                    Text("Speed")
-                }
-                TextButton(onClick = onChangeModel, enabled = !ui.generating) { Text("Model") }
-            }
-        }
-
-        ui.benchmark?.let { result ->
-            Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 8.dp)) {
-                Text(
-                    result,
-                    fontSize = 11.sp, fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-
-        if (ui.messages.isEmpty()) {
-            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Text(
-                    "Kuch poochhein.\nSab kuch is phone ke andar — offline.",
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        } else {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                items(ui.messages) { message -> Bubble(message) }
-            }
-        }
-
-        if (ui.listening || ui.voiceNote != null) {
-            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp)) {
-                ui.voiceNote?.let {
-                    Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
-                }
-                if (ui.heardSoFar.isNotBlank()) {
-                    Text(
-                        ui.heardSoFar,
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
-
-        Row(
-            Modifier.fillMaxWidth().padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            if (micUsable) {
-                if (ui.listening) {
-                    Button(onClick = onStopListening) { Text("Sun raha…") }
-                } else {
-                    OutlinedButton(
-                        onClick = onListen,
-                        enabled = !ui.busy && !ui.generating,
-                    ) { Text("🎤") }
-                }
-            }
-            OutlinedTextField(
-                value = input,
-                onValueChange = { input = it },
-                modifier = Modifier.weight(1f),
-                placeholder = { Text("Jarvis se baat karein…") },
-                enabled = !ui.busy,
-                maxLines = 4,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                keyboardActions = KeyboardActions(onSend = {
-                    onSend(input); input = ""
-                }),
-            )
-            if (ui.generating) {
-                Button(onClick = onStop) { Text("Stop") }
             } else {
-                Button(
-                    onClick = { onSend(input); input = "" },
-                    enabled = input.isNotBlank() && !ui.busy,
-                ) { Text("Send") }
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    items(ui.messages) { message -> Bubble(message) }
+                }
             }
+
+            VoiceStrip(ui = ui)
+
+            Composer(
+                input = input,
+                onInputChange = { input = it },
+                ui = ui,
+                micUsable = micUsable,
+                onSend = { onSend(input); input = "" },
+                onStop = onStop,
+                onListen = onListen,
+                onStopListening = onStopListening,
+            )
         }
-    }
 
         if (ui.voiceMode) {
             VoiceOverlay(
@@ -197,6 +145,221 @@ fun ChatScreen(
                 reply = ui.messages.lastOrNull()?.takeIf { !it.fromUser }?.text.orEmpty(),
                 onDismiss = onExitVoice,
             )
+        }
+    }
+}
+
+@Composable
+private fun ChatHeader(
+    reactorState: ReactorState,
+    micLevel: Float,
+    modelLabel: String,
+    speakReplies: Boolean,
+    onToggleSpeak: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ArcReactor(state = reactorState, level = micLevel, modifier = Modifier.size(34.dp))
+        Spacer(Modifier.width(10.dp))
+        // weight(1f) is what stops the model name pushing into the buttons; it
+        // used to be unconstrained and wrapped the header onto three lines.
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = "JARVIS",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            if (modelLabel.isNotBlank()) {
+                Text(
+                    text = modelLabel,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        IconButton(onClick = onToggleSpeak) {
+            Icon(
+                imageVector = if (speakReplies) JarvisIcons.VolumeUp else JarvisIcons.VolumeOff,
+                contentDescription = stringResource(
+                    if (speakReplies) R.string.action_mute else R.string.action_unmute,
+                ),
+                tint = if (speakReplies) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+        }
+        IconButton(onClick = onOpenSettings) {
+            Icon(
+                imageVector = Icons.Filled.Settings,
+                contentDescription = stringResource(R.string.action_settings),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/**
+ * The first thing a new user sees. It used to be two lines of grey text pinned
+ * to the middle of nowhere; the system prompt already knows exactly what Jarvis
+ * can do, so say it and offer a way in.
+ */
+@Composable
+private fun EmptyChat(
+    reactorState: ReactorState,
+    micLevel: Float,
+    onSuggestion: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val suggestions = listOf(
+        stringResource(R.string.suggestion_one),
+        stringResource(R.string.suggestion_two),
+        stringResource(R.string.suggestion_three),
+    )
+    Column(
+        modifier.fillMaxWidth().padding(horizontal = 28.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        ArcReactor(state = reactorState, level = micLevel, modifier = Modifier.size(120.dp))
+        Spacer(Modifier.height(20.dp))
+        Text(
+            text = stringResource(R.string.empty_title),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = stringResource(R.string.empty_subtitle),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(20.dp))
+        suggestions.forEach { suggestion ->
+            TextButton(onClick = { onSuggestion(suggestion) }) {
+                Text(suggestion, style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+    }
+}
+
+/**
+ * Status and failure told apart. Both used to be printed in the same amber, so
+ * "Listening…" and "Jarvis cannot use the microphone" looked identical.
+ */
+@Composable
+private fun VoiceStrip(ui: UiState) {
+    if (!ui.listening && ui.voiceNote == null && ui.heardSoFar.isBlank()) return
+    val failed = !ui.listening && ui.voiceNote != null
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+        ui.voiceNote?.let { note ->
+            Text(
+                text = note,
+                style = MaterialTheme.typography.labelMedium,
+                color = if (failed) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.primary
+                },
+            )
+        }
+        if (ui.heardSoFar.isNotBlank()) {
+            Text(
+                text = ui.heardSoFar,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun Composer(
+    input: String,
+    onInputChange: (String) -> Unit,
+    ui: UiState,
+    micUsable: Boolean,
+    onSend: () -> Unit,
+    onStop: () -> Unit,
+    onListen: () -> Unit,
+    onStopListening: () -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        if (micUsable) {
+            FilledIconButton(
+                onClick = if (ui.listening) onStopListening else onListen,
+                enabled = ui.listening || (!ui.busy && !ui.generating),
+                colors = if (ui.listening) {
+                    IconButtonDefaults.filledIconButtonColors()
+                } else {
+                    IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        contentColor = MaterialTheme.colorScheme.primary,
+                    )
+                },
+            ) {
+                Icon(
+                    imageVector = if (ui.listening) JarvisIcons.Stop else JarvisIcons.Mic,
+                    contentDescription = stringResource(
+                        if (ui.listening) R.string.action_stop_listening else R.string.action_listen,
+                    ),
+                )
+            }
+        }
+
+        OutlinedTextField(
+            value = input,
+            onValueChange = onInputChange,
+            modifier = Modifier.weight(1f),
+            placeholder = {
+                Text(
+                    stringResource(R.string.composer_hint),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            },
+            // Typing during generation used to be accepted and then silently
+            // thrown away, because send refuses while an answer is streaming.
+            enabled = !ui.busy && !ui.generating,
+            maxLines = 4,
+            shape = MaterialTheme.shapes.large,
+            textStyle = MaterialTheme.typography.bodyLarge,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+            keyboardActions = KeyboardActions(onSend = { onSend() }),
+        )
+
+        if (ui.generating) {
+            FilledIconButton(onClick = onStop) {
+                Icon(
+                    imageVector = JarvisIcons.Stop,
+                    contentDescription = stringResource(R.string.action_stop),
+                )
+            }
+        } else {
+            FilledIconButton(
+                onClick = onSend,
+                enabled = input.isNotBlank() && !ui.busy,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Send,
+                    contentDescription = stringResource(R.string.action_send),
+                )
+            }
         }
     }
 }
@@ -217,59 +380,87 @@ private fun VoiceOverlay(
     Box(
         Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.97f))
-            .clickable(onClick = onDismiss),
-        contentAlignment = Alignment.Center,
+            .background(MaterialTheme.colorScheme.background),
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(28.dp),
-            modifier = Modifier.padding(32.dp),
+        // A close button rather than a full-screen tap target: the whole screen
+        // being clickable gave no hint it was, and rippled on every touch.
+        IconButton(
+            onClick = onDismiss,
+            modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(8.dp),
         ) {
-            ArcReactor(state = state, level = level, modifier = Modifier.size(260.dp))
-
-            Text(
-                text = when (state) {
-                    ReactorState.Listening -> heard.ifBlank { note ?: "Sun raha hoon…" }
-                    ReactorState.Thinking -> "Soch raha hoon…"
-                    ReactorState.Speaking -> reply
-                    ReactorState.Idle -> note ?: "Tap to close"
-                },
-                fontSize = 16.sp,
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onBackground,
+            Icon(
+                imageVector = Icons.Filled.Close,
+                contentDescription = stringResource(R.string.action_close_voice),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(horizontal = 28.dp, vertical = 64.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            ArcReactor(state = state, level = level, modifier = Modifier.size(240.dp))
+            Spacer(Modifier.height(24.dp))
+            val caption = when (state) {
+                ReactorState.Listening -> heard.ifBlank { note ?: stringResource(R.string.voice_listening) }
+                ReactorState.Thinking -> stringResource(R.string.voice_thinking)
+                ReactorState.Speaking -> reply
+                ReactorState.Idle -> note ?: reply.ifBlank { stringResource(R.string.voice_idle) }
+            }
+            // Scrollable: a long answer used to run off the bottom of the screen
+            // with no way to read the rest of it.
+            Box(Modifier.fillMaxWidth().weight(1f, fill = false)) {
+                Text(
+                    text = caption,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                )
+            }
         }
     }
 }
 
 @Composable
 private fun Bubble(message: ChatMessage) {
-    val isUser = message.fromUser
+    val fromUser = message.fromUser
     Row(
         Modifier.fillMaxWidth(),
-        horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
+        horizontalArrangement = if (fromUser) Arrangement.End else Arrangement.Start,
     ) {
-        Column(
-            Modifier
-                .widthIn(max = 300.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(
-                    if (isUser) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.surface
-                )
-                .padding(horizontal = 14.dp, vertical = 10.dp)
+        Surface(
+            // A fraction rather than a fixed 300dp, so it reads the same on any
+            // screen width.
+            modifier = Modifier.fillMaxWidth(0.86f),
+            color = if (fromUser) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerHigh
+            },
+            shape = MaterialTheme.shapes.medium,
         ) {
-            Text(
-                text = message.text.ifEmpty { "…" },
-                fontSize = 15.sp,
-                color = if (isUser) MaterialTheme.colorScheme.onPrimary
-                else MaterialTheme.colorScheme.onSurface,
-            )
-            if (message.streaming) {
-                Spacer(Modifier.height(4.dp))
-                Text("soch raha hoon…", fontSize = 10.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+                Text(
+                    text = message.text.ifEmpty { "…" },
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = if (fromUser) {
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                )
+                if (message.streaming) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = stringResource(R.string.voice_thinking),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }

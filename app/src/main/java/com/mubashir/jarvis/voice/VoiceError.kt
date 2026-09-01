@@ -18,57 +18,57 @@ data class VoiceProblem(
  */
 fun describeVoiceError(code: Int): VoiceProblem = when (code) {
     SpeechRecognizer.ERROR_AUDIO ->
-        VoiceProblem("Microphone se awaaz nahi aayi")
+        VoiceProblem("No sound reached the microphone.")
 
     SpeechRecognizer.ERROR_CLIENT ->
         VoiceProblem("Recognizer band ho gaya")
 
     SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS ->
-        VoiceProblem("Microphone ki ijazat nahi hai")
+        VoiceProblem("Jarvis does not have permission to use the microphone.")
 
     SpeechRecognizer.ERROR_NETWORK,
     SpeechRecognizer.ERROR_NETWORK_TIMEOUT ->
         VoiceProblem(
-            "Recognizer ne internet maanga — offline language pack install nahi hai",
+            "The recogniser asked for the internet, which means no offline language pack is installed.",
             fixableInSettings = true,
         )
 
     SpeechRecognizer.ERROR_NO_MATCH ->
-        VoiceProblem("Samajh nahi aaya, dobara boliye")
+        VoiceProblem("Did not catch that — say it again.")
 
     SpeechRecognizer.ERROR_RECOGNIZER_BUSY ->
-        VoiceProblem("Recognizer pehle se chal raha hai")
+        VoiceProblem("The recogniser is already running.")
 
     SpeechRecognizer.ERROR_SERVER ->
-        VoiceProblem("Recognizer service ne error diya")
+        VoiceProblem("The speech service reported an error.")
 
     SpeechRecognizer.ERROR_SPEECH_TIMEOUT ->
-        VoiceProblem("Kuch sunai nahi diya")
+        VoiceProblem("Nothing was heard.")
 
     SpeechRecognizer.ERROR_TOO_MANY_REQUESTS ->
-        VoiceProblem("Recognizer abhi masroof hai, thodi der baad")
+        VoiceProblem("The recogniser is busy — try again in a moment.")
 
     SpeechRecognizer.ERROR_SERVER_DISCONNECTED ->
-        VoiceProblem("Recognizer service se raabta toot gaya")
+        VoiceProblem("Lost contact with the speech service.")
 
     SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED ->
         VoiceProblem(
-            "Yeh zubaan recognizer support nahi karta",
+            "The recogniser does not support this language.",
             fixableInSettings = true,
         )
 
     SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE ->
         VoiceProblem(
-            "Is zubaan ka offline pack phone par install nahi hai. " +
-                "Settings mein jaakar English download karein.",
+            "No offline language pack is installed for this language. " +
+                "Add English in the phone's speech settings.",
             fixableInSettings = true,
         )
 
     SpeechRecognizer.ERROR_CANNOT_CHECK_SUPPORT ->
-        VoiceProblem("Zubaan check nahi ho saki, dobara koshish karein")
+        VoiceProblem("Could not check language support — try again.")
 
     SpeechRecognizer.ERROR_CANNOT_LISTEN_TO_DOWNLOAD_EVENTS ->
-        VoiceProblem("Language download ka status nahi mil saka")
+        VoiceProblem("Could not read the language download status.")
 
-    else -> VoiceProblem("Sun-ne mein masla hua (code $code)")
+    else -> VoiceProblem("Listening failed (code $code).")
 }

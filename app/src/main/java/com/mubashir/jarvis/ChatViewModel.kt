@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.arm.aichat.InferenceEngine
+import com.mubashir.jarvis.data.StoredMessage
 import com.mubashir.jarvis.model.DownloadState
 import com.mubashir.jarvis.model.InstalledModel
 import com.mubashir.jarvis.model.ModelSpec
@@ -35,6 +36,11 @@ data class UiState(
     val download: DownloadState? = null,
     val downloadingSpec: ModelSpec? = null,
     val busy: Boolean = false,
+    /**
+     * What the busy overlay should say. It always claimed a model was loading,
+     * including while exporting a 4 GB file or running a benchmark.
+     */
+    val busyMessage: Int = R.string.busy_loading,
     val generating: Boolean = false,
     val listening: Boolean = false,
     /** Smoothed microphone loudness, 0..1, driving the reactor while listening. */
@@ -61,6 +67,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private val engine = runtime.engine
     private val speaker = runtime.speaker
     private val voice = runtime.voice
+    private val settings = runtime.settings
+    private val chats = runtime.chats
     private val micLevel = MicLevel()
 
     private val _ui = MutableStateFlow(UiState())
@@ -79,7 +87,14 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     init {
         // The engine is process-scoped now, so a model loaded before this screen
         // existed is still loaded — reflect that rather than showing setup again.
-        _ui.update { it.copy(loadedModel = engine.loadedModelPath?.let { path -> File(path).name }) }
+        val restored = chats.load().map { ChatMessage(it.fromUser, it.text) }
+        _ui.update {
+            it.copy(
+                loadedModel = engine.loadedModelPath?.let { path -> File(path).name },
+                messages = restored,
+                speakReplies = settings.settings.value.speakReplies,
+            )
+        }
         refreshInstalled()
         resumePendingDownload()
         viewModelScope.launch {
@@ -94,10 +109,28 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     /** Why the phone cannot speak, if it cannot. Null when speech works. */
     fun speechUnavailableReason(): String? = speaker.unavailableReason
 
-    fun toggleSpeakReplies() {
-        val on = !_ui.value.speakReplies
+    fun toggleSpeakReplies() = setSpeakReplies(!_ui.value.speakReplies)
+
+    fun setSpeakReplies(on: Boolean) {
         if (!on) speaker.stop()
+        settings.setSpeakReplies(on)
         _ui.update { it.copy(speakReplies = on) }
+    }
+
+    fun setPredictLength(tokens: Int) = settings.setPredictLength(tokens)
+
+    fun predictLength(): Int = settings.settings.value.predictLength
+
+    /** Forgets the conversation, on the screen and on disk. */
+    fun clearChat() {
+        chats.clear()
+        _ui.update { it.copy(messages = emptyList()) }
+    }
+
+    fun clearBenchmark() = _ui.update { it.copy(benchmark = null) }
+
+    private fun persistChat() {
+        chats.save(_ui.value.messages.map { StoredMessage(it.fromUser, it.text) })
     }
 
     /** Listens for one utterance and sends it as a prompt. */
@@ -266,7 +299,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     fun import(uri: Uri, fileName: String) {
         viewModelScope.launch {
-            _ui.update { it.copy(busy = true, error = null) }
+            _ui.update { it.copy(busy = true, error = null, busyMessage = R.string.busy_importing) }
             // Copying gigabytes is not something to do on the main thread.
             withContext(Dispatchers.IO) { models.import(uri, fileName) }
                 .onSuccess { file ->
@@ -285,9 +318,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun load(model: File) {
         if (_ui.value.busy) return
         viewModelScope.launch {
-            _ui.update { it.copy(busy = true, error = null, benchmark = null) }
+            _ui.update { it.copy(busy = true, error = null, benchmark = null, busyMessage = R.string.busy_loading) }
             runCatching { engine.load(model) }
                 .onSuccess {
+                    settings.setLastModelFile(model.name)
                     _ui.update { it.copy(busy = false, loadedModel = model.name) }
                 }
                 .onFailure { e ->
@@ -336,7 +370,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             val sentences = SentenceSplitter()
             var spokenAnything = false
             try {
-                engine.ask(prompt).collect { token ->
+                engine.ask(prompt, settings.settings.value.predictLength).collect { token ->
                     reply.append(token)
                     _ui.update { s -> s.copy(messages = s.messages.replaceLast(reply.toString(), true)) }
 
@@ -366,6 +400,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     speaker.speak(tail, interrupt = !spokenAnything)
                 }
             }
+            persistChat()
         }
     }
 
@@ -381,12 +416,13 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 generating = false,
             )
         }
+        persistChat()
     }
 
     fun benchmark() {
         if (_ui.value.busy) return
         viewModelScope.launch {
-            _ui.update { it.copy(busy = true, benchmark = null, error = null) }
+            _ui.update { it.copy(busy = true, benchmark = null, error = null, busyMessage = R.string.busy_measuring) }
             runCatching { engine.benchmark() }
                 .onSuccess { result -> _ui.update { it.copy(busy = false, benchmark = result) } }
                 .onFailure { e ->
@@ -402,7 +438,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun export(model: InstalledModel) {
         if (_ui.value.busy) return
         viewModelScope.launch {
-            _ui.update { it.copy(busy = true, error = null, notice = null) }
+            _ui.update { it.copy(busy = true, error = null, notice = null, busyMessage = R.string.busy_saving) }
             val result = withContext(Dispatchers.IO) { models.exportToDownloads(model) }
             result
                 .onSuccess { path ->

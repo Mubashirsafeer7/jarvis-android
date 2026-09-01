@@ -56,12 +56,12 @@ class VoiceInput(private val context: Context) {
      */
     fun listen(): Flow<Event> = callbackFlow {
         if (!hasMicPermission()) {
-            trySend(Event.Failed("Microphone ki ijazat nahi hai"))
+            trySend(Event.Failed("Jarvis does not have permission to use the microphone."))
             close()
             return@callbackFlow
         }
         if (!isAvailable()) {
-            trySend(Event.Failed("Is phone par speech recognition mojood nahi"))
+            trySend(Event.Failed("This phone has no speech recognition available."))
             close()
             return@callbackFlow
         }
@@ -85,7 +85,7 @@ class VoiceInput(private val context: Context) {
             override fun onResults(results: Bundle?) {
                 val heard = results.firstResult()
                 if (heard.isNullOrBlank()) {
-                    trySend(Event.Failed("Kuch sunai nahi diya"))
+                    trySend(Event.Failed("Nothing was heard."))
                 } else {
                     trySend(Event.Heard(heard))
                 }

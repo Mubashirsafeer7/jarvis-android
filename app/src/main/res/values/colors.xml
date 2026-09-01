@@ -5,4 +5,7 @@
          app's #060B14 navy) is what stops a faint square seam showing inside the
          launcher's mask. -->
     <color name="ic_launcher_background">#000106</color>
+
+    <!-- Kept in step with JarvisColors.Navy. -->
+    <color name="window_background">#060B14</color>
 </resources>

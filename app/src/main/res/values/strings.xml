@@ -37,4 +37,90 @@
     <string name="failed_file">The file could not be written</string>
     <string name="failed_http">The server refused (HTTP %d). The link may have changed — download the model yourself and import it.</string>
     <string name="failed_unknown">The download failed (code %d)</string>
+
+    <!-- Actions -->
+    <string name="action_send">Send</string>
+    <string name="action_stop">Stop</string>
+    <string name="action_listen">Speak to Jarvis</string>
+    <string name="action_stop_listening">Stop listening</string>
+    <string name="action_mute">Turn replies off</string>
+    <string name="action_unmute">Read replies aloud</string>
+    <string name="action_settings">Settings</string>
+    <string name="action_back">Back</string>
+    <string name="action_close_voice">Close</string>
+    <string name="action_clear">Clear</string>
+    <string name="action_open_settings">Open settings</string>
+    <string name="action_retry">Try again</string>
+    <string name="action_import">Import a file</string>
+    <string name="action_ok">OK</string>
+
+    <!-- Chat -->
+    <string name="composer_hint">Ask Jarvis anything</string>
+    <string name="empty_title">Everything stays on this phone</string>
+    <string name="empty_subtitle">No account, no internet, no limits. Ask away.</string>
+    <string name="suggestion_one">Explain quantum computing simply</string>
+    <string name="suggestion_two">Write a short message to my landlord</string>
+    <string name="suggestion_three">What can you actually do?</string>
+    <string name="voice_thinking">Thinking…</string>
+    <string name="voice_idle">Tap the microphone to talk</string>
+
+    <!-- Settings -->
+    <string name="settings_title">SETTINGS</string>
+    <string name="settings_voice">VOICE</string>
+    <string name="settings_speak_replies">Read replies aloud</string>
+    <string name="settings_speak_replies_detail">Jarvis speaks each sentence as it is written.</string>
+    <string name="settings_no_recogniser">This phone has no speech recogniser available.</string>
+    <string name="settings_brain">BRAIN</string>
+    <string name="settings_no_model">No model loaded</string>
+    <string name="settings_ram_free">%1$.1f GB RAM · %2$.1f GB free</string>
+    <string name="settings_manage_models">Manage models</string>
+    <string name="settings_answers">ANSWER LENGTH</string>
+    <string name="settings_answer_length_detail">How many words Jarvis may use before it has to stop. Longer answers take longer to arrive.</string>
+    <string name="settings_speed">SPEED</string>
+    <string name="settings_speed_detail">Measures this phone rather than trusting a spec sheet.</string>
+    <string name="settings_measure">Measure speed</string>
+    <string name="settings_conversation">CONVERSATION</string>
+    <string name="settings_clear_chat_detail">%d messages kept on this phone.</string>
+    <string name="settings_clear_chat">Clear conversation</string>
+    <string name="settings_about">ABOUT</string>
+    <string name="settings_version">Version %s</string>
+    <string name="settings_offline_note">Jarvis runs entirely on this phone. Nothing you say or type leaves it.</string>
+
+    <!-- Setup -->
+    <string name="setup_subtitle">Choose a brain. It lives on the phone — after this, no internet needed.</string>
+    <string name="setup_installed">ON THIS PHONE</string>
+    <string name="setup_installed_detail">Save copies a model to Downloads. Uninstalling the app deletes its own model folder; the copy survives and can be imported back.</string>
+    <string name="setup_available">DOWNLOAD</string>
+    <string name="setup_device">%1$.1f GB RAM · %2$.1f GB free</string>
+    <string name="setup_metered_note">Mobile data works too — the size is shown before anything starts.</string>
+    <string name="setup_import">OR USE YOUR OWN FILE</string>
+    <string name="setup_import_detail">Import any GGUF model. If a download link ever stops working, or you want a different model, this way always works.</string>
+    <string name="setup_choose_file">Choose a model file</string>
+    <string name="setup_downloading">DOWNLOADING</string>
+    <string name="setup_can_close">You can close the app — the download keeps going.</string>
+    <string name="setup_starting">Starting…</string>
+    <string name="setup_too_big">Too big for this phone (needs %.1f GB RAM)</string>
+    <string name="setup_size_gb">%.2f GB</string>
+    <string name="setup_progress">%1$.2f GB of %2$.2f GB</string>
+    <string name="setup_installed_marker">Installed</string>
+    <string name="setup_loaded_marker">In use</string>
+    <string name="action_save">Save</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_load">Load</string>
+    <string name="action_get">Get</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="role_fast">Fast</string>
+    <string name="role_deep">Thorough</string>
+    <string name="delete_title">Delete this model?</string>
+    <string name="delete_body">%1$s takes up %2$.2f GB. Deleting it cannot be undone, and downloading it again takes a while.</string>
+
+    <!-- Busy and dialogs -->
+    <string name="busy_loading">Loading the model — the first time takes a while</string>
+    <string name="busy_importing">Copying the model onto this phone…</string>
+    <string name="busy_saving">Copying to Downloads…</string>
+    <string name="busy_measuring">Measuring…</string>
+    <string name="dialog_problem">Something went wrong</string>
+    <string name="dialog_done">Done</string>
+    <string name="mic_denied_title">Microphone blocked</string>
+    <string name="mic_denied_body">Jarvis needs the microphone to listen. Android will not ask again, so it has to be turned on in the app\'s permissions.</string>
 </resources>

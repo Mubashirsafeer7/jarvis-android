@@ -3,6 +3,8 @@ package com.mubashir.jarvis.core
 import android.content.ComponentCallbacks2
 import android.content.Context
 import com.mubashir.jarvis.DeviceCapabilities
+import com.mubashir.jarvis.data.ChatStore
+import com.mubashir.jarvis.data.SettingsStore
 import com.mubashir.jarvis.llm.JarvisEngine
 import com.mubashir.jarvis.model.DownloadStore
 import com.mubashir.jarvis.model.ModelManager
@@ -31,6 +33,8 @@ class JarvisRuntime(context: Context) : ComponentCallbacks2 {
     val voice = VoiceInput(app)
     val models = ModelManager(app)
     val downloads = DownloadStore(app)
+    val settings = SettingsStore(app)
+    val chats = ChatStore(app)
     val capabilities = DeviceCapabilities.read(app)
 
     /**

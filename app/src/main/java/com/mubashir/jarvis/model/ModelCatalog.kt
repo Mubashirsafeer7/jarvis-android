@@ -4,7 +4,7 @@ import com.mubashir.jarvis.DeviceCapabilities
 
 /**
  * Which model fills which role. Voice commands need an answer to start in about
- * a second, while a "sochkar batao" question can afford to be slow, and a 12 GB
+ * a second, while a question worth thinking about can afford to be slow, and a 12 GB
  * phone has room for both — so the two roles are separate models rather than one
  * compromise between them.
  */
@@ -41,7 +41,7 @@ object ModelCatalog {
                 "resolve/main/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf?download=true",
             approxBytes = (1.1 * GB).toLong(),
             minRamGb = 3.5,
-            notes = "Sabse tez. Commands ke liye kaafi, baat-cheet simple.",
+            notes = "Fastest. Fine for commands and short exchanges.",
         ),
         ModelSpec(
             id = "qwen2.5-3b-instruct-q4km",
@@ -54,7 +54,7 @@ object ModelCatalog {
             // 2 GB of weights and an 8k KV cache leave nothing over on a 6 GB
             // phone once Android has taken its share, so this needs 8 GB class.
             minRamGb = 7.0,
-            notes = "Rozana ke liye behtareen balance — tez bhi, samajhdar bhi.",
+            notes = "The best balance for everyday use — quick, and it understands.",
         ),
         ModelSpec(
             id = "qwen2.5-7b-instruct-q4km",
@@ -65,7 +65,7 @@ object ModelCatalog {
                 "resolve/main/Qwen2.5-7B-Instruct-Q4_K_M.gguf?download=true",
             approxBytes = (4.7 * GB).toLong(),
             minRamGb = 9.0,
-            notes = "Lambe sawal aur samjhane ke liye. Voice ke liye slow hai.",
+            notes = "For longer questions and explanations. Slow for voice.",
         ),
     )
 

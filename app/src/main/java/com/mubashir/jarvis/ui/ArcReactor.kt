@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import com.mubashir.jarvis.ui.theme.JarvisColors
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
@@ -25,10 +26,13 @@ import kotlin.math.sin
 /** What the reactor is reacting to. */
 enum class ReactorState { Idle, Listening, Thinking, Speaking }
 
-private val Amber = Color(0xFFFF9D2E)
-private val AmberBright = Color(0xFFFFC46B)
-private val AmberDeep = Color(0xFFB85C00)
-private val Core = Color(0xFFFFF1D6)
+// Taken from the palette rather than restated here. These four were previously
+// a private copy of the theme's amber, so changing the theme quietly left the
+// reactor — the thing the theme exists for — a different colour.
+private val Amber get() = JarvisColors.Amber
+private val AmberBright get() = JarvisColors.AmberBright
+private val AmberDeep get() = JarvisColors.AmberDeep
+private val Core get() = JarvisColors.Core
 
 /**
  * The arc reactor.
