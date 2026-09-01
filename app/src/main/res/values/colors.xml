@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#060B14</color>
+    <!-- The launcher foreground is the reference artwork itself, and the artwork
+         carries its own near-black ground. Matching that exactly (rather than the
+         app's #060B14 navy) is what stops a faint square seam showing inside the
+         launcher's mask. -->
+    <color name="ic_launcher_background">#000106</color>
 </resources>
