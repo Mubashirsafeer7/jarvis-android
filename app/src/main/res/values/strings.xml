@@ -98,6 +98,10 @@
     <string name="update_needs_permission">Android has to allow Jarvis to install apps before this can go any further.</string>
     <string name="update_allow">Allow installs</string>
 
+    <string name="notice_rescue_copy">A copy is kept at %s, so uninstalling cannot lose it.</string>
+    <string name="settings_keep_copy">Keep a spare copy</string>
+    <string name="settings_keep_copy_detail">Copies each downloaded model to Downloads/Jarvis. Uninstalling the app deletes its own model folder; this copy survives and can be imported straight back. Costs the size of the model again.</string>
+
     <string name="settings_control">PHONE CONTROL</string>
     <string name="settings_phone_control">Act on commands</string>
     <string name="settings_phone_control_detail">Recognised commands are carried out instead of being answered.</string>

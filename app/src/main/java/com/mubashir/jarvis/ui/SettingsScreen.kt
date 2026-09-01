@@ -58,6 +58,8 @@ fun SettingsScreen(
     onDismissBenchmark: () -> Unit,
     onClearChat: () -> Unit,
     onOpenVoiceSettings: () -> Unit,
+    keepRescueCopy: Boolean,
+    onSetKeepRescueCopy: (Boolean) -> Unit,
     phoneControl: Boolean,
     onSetPhoneControl: (Boolean) -> Unit,
     canInstallUpdates: Boolean,
@@ -158,6 +160,14 @@ fun SettingsScreen(
             OutlinedButton(onClick = onManageModels, enabled = !ui.busy) {
                 Text(stringResource(R.string.settings_manage_models))
             }
+            Spacer(Modifier.height(16.dp))
+            SwitchRow(
+                label = stringResource(R.string.settings_keep_copy),
+                detail = stringResource(R.string.settings_keep_copy_detail),
+                checked = keepRescueCopy,
+                enabled = true,
+                onCheckedChange = onSetKeepRescueCopy,
+            )
         }
 
         SettingsCard(title = stringResource(R.string.settings_answers)) {

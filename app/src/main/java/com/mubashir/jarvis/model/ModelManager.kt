@@ -95,6 +95,42 @@ class ModelManager(private val context: Context) {
      * the file cannot be rescued from outside. A copy in Downloads survives both
      * and can be handed straight back through [import].
      */
+    /**
+     * True when Downloads already holds a copy of this model.
+     *
+     * Without the check a second export lands as "name (1).gguf" and quietly
+     * eats another few gigabytes.
+     */
+    fun hasRescueCopy(fileName: String): Boolean = runCatching {
+        context.contentResolver.query(
+            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+            arrayOf(MediaStore.Downloads._ID),
+            "${MediaStore.Downloads.DISPLAY_NAME} = ? AND " +
+                "${MediaStore.Downloads.RELATIVE_PATH} LIKE ?",
+            arrayOf(fileName, "%${Environment.DIRECTORY_DOWNLOADS}/$EXPORT_DIR%"),
+            null,
+        )?.use { it.count > 0 } ?: false
+    }.getOrDefault(false)
+
+    /**
+     * Copies a freshly downloaded model to Downloads so an uninstall cannot take
+     * it with it.
+     *
+     * Models live in the app's external files directory, which Android deletes
+     * on uninstall — that is how a two gigabyte download was lost twice. Doing
+     * this automatically rather than waiting for someone to remember a Save
+     * button is the difference between a nuisance and a lost afternoon.
+     */
+    fun rescueCopy(file: File): Result<String> = runCatching {
+        if (hasRescueCopy(file.name)) return@runCatching "Downloads/$EXPORT_DIR/${file.name}"
+        val model = InstalledModel(
+            file = file,
+            spec = ModelCatalog.all.firstOrNull { it.fileName == file.name },
+            sizeBytes = file.length(),
+        )
+        exportToDownloads(model).getOrThrow()
+    }
+
     fun exportToDownloads(model: InstalledModel): Result<String> = runCatching {
         val free = Environment.getExternalStorageDirectory().usableSpace
         if (free < model.sizeBytes) {

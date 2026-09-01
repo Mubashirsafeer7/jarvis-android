@@ -185,6 +185,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setPhoneControl(on: Boolean) = settings.setPhoneControl(on)
 
+    fun keepRescueCopy(): Boolean = settings.settings.value.keepRescueCopy
+
+    fun setKeepRescueCopy(on: Boolean) = settings.setKeepRescueCopy(on)
+
     fun predictLength(): Int = settings.settings.value.predictLength
 
     /** Forgets the conversation, on the screen and on disk. */
@@ -325,6 +329,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                         is DownloadState.Done -> {
                             finishDownload()
                             refreshInstalled()
+                            saveRescueCopy(state.file)
                             if (autoLoad) load(state.file)
                         }
 
@@ -344,6 +349,29 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 finishDownload()
                 _ui.update { it.copy(error = describeFailure(e)) }
             }
+        }
+    }
+
+    /**
+     * Copies a finished download to Downloads in the background.
+     *
+     * Models live where Android deletes them on uninstall, which is how a two
+     * gigabyte download has been lost twice. Best effort on purpose: a failed
+     * copy must not turn a working download into an error, so it is reported
+     * only as a note.
+     */
+    private fun saveRescueCopy(file: File) {
+        if (!settings.settings.value.keepRescueCopy) return
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { runtime.models.rescueCopy(file) }
+                .onSuccess { path ->
+                    _ui.update {
+                        it.copy(
+                            notice = getApplication<Application>()
+                                .getString(R.string.notice_rescue_copy, path),
+                        )
+                    }
+                }
         }
     }
 
