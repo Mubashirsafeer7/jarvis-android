@@ -207,6 +207,8 @@ jobs:
             exit 1
           fi
           echo "Found $(printf '%s\n' "$libs" | wc -l) native libraries"
+          printf '%s\n' "$libs" | sed 's|/tmp/apkcheck/lib/||'
+
 
           # Pinned to the NDK this workflow installed. GNU readelf wraps each
           # LOAD over two lines and the parse below reads the wrong field from
