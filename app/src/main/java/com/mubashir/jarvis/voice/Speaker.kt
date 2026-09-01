@@ -54,7 +54,8 @@ class Speaker(context: Context) {
 
     private fun pickVoice(): String? {
         // Indian English first, then anything English, before giving up.
-        for (locale in listOf(Locale("en", "IN"), Locale.UK, Locale.US)) {
+        val indianEnglish = Locale.Builder().setLanguage("en").setRegion("IN").build()
+        for (locale in listOf(indianEnglish, Locale.UK, Locale.US)) {
             when (tts.setLanguage(locale)) {
                 TextToSpeech.LANG_MISSING_DATA,
                 TextToSpeech.LANG_NOT_SUPPORTED -> continue

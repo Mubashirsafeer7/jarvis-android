@@ -42,6 +42,7 @@ class JarvisRuntime(context: Context) : ComponentCallbacks2 {
      * model is by far the largest thing this app holds, so give it up rather than
      * be killed outright — the file is still on disk and reloads on demand.
      */
+    @Suppress("DEPRECATION") // the levels are deprecated; the callback still fires
     override fun onTrimMemory(level: Int) {
         if (level < ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) return
         scope.launch {
@@ -50,6 +51,7 @@ class JarvisRuntime(context: Context) : ComponentCallbacks2 {
         }
     }
 
+    @Suppress("DEPRECATION")
     @Deprecated("Required by ComponentCallbacks2", ReplaceWith(""))
     override fun onLowMemory() = onTrimMemory(ComponentCallbacks2.TRIM_MEMORY_COMPLETE)
 
