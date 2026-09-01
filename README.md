@@ -43,7 +43,7 @@ aise apps ko allow nahi karta). Sideload karna hoga — personal use ke liye bil
 
 1. Is repo ke **Actions** tab par jayein
 2. Sabse upar wali successful **Build APK** run kholein
-3. Neeche **Artifacts** se `REMOVED-OLD-KEYSTORE-PASSWORD-apk` download karein
+3. Neeche **Artifacts** se `jarvis-apk` download karein
 4. ZIP se APK nikaal kar phone mein install karein
    *(Settings mein "Install unknown apps" allow karna padega)*
 
@@ -82,7 +82,7 @@ hamesha kaam karta hai.
 Ab har build **ek hi key** se sign hoti hai, to nayi APK seedha purani ke upar install ho jati
 hai — uninstall karne ki zaroorat nahi, aur model bhi wahin rehta hai.
 
-1. **Actions** → sabse upar wali green run → **Artifacts** → `REMOVED-OLD-KEYSTORE-PASSWORD-apk`
+1. **Actions** → sabse upar wali green run → **Artifacts** → `jarvis-apk`
 2. ZIP se APK nikaal kar install karein — bas.
 
 ### Model ka backup

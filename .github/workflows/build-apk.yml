@@ -177,7 +177,7 @@ jobs:
       # installable APK to look at.
       - uses: actions/upload-artifact@v4
         with:
-          name: REMOVED-OLD-KEYSTORE-PASSWORD-apk
+          name: jarvis-apk
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
 
