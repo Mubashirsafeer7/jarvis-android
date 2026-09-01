@@ -58,8 +58,8 @@
     <string name="composer_hint">Ask Jarvis anything</string>
     <string name="empty_title">Everything stays on this phone</string>
     <string name="empty_subtitle">No account, no internet, no limits. Ask away.</string>
-    <string name="suggestion_one">Explain quantum computing simply</string>
-    <string name="suggestion_two">Write a short message to my landlord</string>
+    <string name="suggestion_one">Torch on</string>
+    <string name="suggestion_two">Battery kitni hai</string>
     <string name="suggestion_three">What can you actually do?</string>
     <string name="voice_thinking">Thinking…</string>
     <string name="voice_idle">Tap the microphone to talk</string>
@@ -97,6 +97,31 @@
     <string name="update_failed">The update could not be installed.</string>
     <string name="update_needs_permission">Android has to allow Jarvis to install apps before this can go any further.</string>
     <string name="update_allow">Allow installs</string>
+
+    <string name="settings_control">PHONE CONTROL</string>
+    <string name="settings_phone_control">Act on commands</string>
+    <string name="settings_phone_control_detail">Recognised commands are carried out instead of being answered.</string>
+    <string name="settings_phone_control_list">Working now: torch, battery, timers, opening apps. Calls, messages, location, calendar and notifications are recognised but say plainly that they are not built yet.</string>
+
+    <!-- Phone control -->
+    <string name="tool_torch_on">Torch on.</string>
+    <string name="tool_torch_off">Torch off.</string>
+    <string name="tool_torch_failed">Could not reach the torch.</string>
+    <string name="tool_no_torch">This phone has no flash.</string>
+    <string name="tool_battery">Battery is at %d percent.</string>
+    <string name="tool_battery_charging">Battery is at %d percent and charging.</string>
+    <string name="tool_battery_unknown">Could not read the battery level.</string>
+    <string name="tool_timer_set">Timer set for %s.</string>
+    <string name="tool_timer_failed">Could not set the timer.</string>
+    <string name="tool_no_clock">There is no clock app to set a timer with.</string>
+    <string name="tool_opened">Opening %s.</string>
+    <string name="tool_no_such_app">I could not find an app called %s.</string>
+    <string name="tool_no_calls">I cannot place calls yet.</string>
+    <string name="tool_no_messages">I cannot send messages yet.</string>
+    <string name="tool_no_location">I cannot check your location yet.</string>
+    <string name="tool_no_calendar">I cannot read your calendar yet.</string>
+    <string name="tool_no_notifications">I cannot read your notifications yet.</string>
+    <string name="tool_no_alarm">I cannot set alarms yet.</string>
 
     <string name="settings_about">ABOUT</string>
     <string name="settings_version">Version %s</string>
@@ -141,4 +166,17 @@
     <string name="dialog_done">Done</string>
     <string name="mic_denied_title">Microphone blocked</string>
     <string name="mic_denied_body">Jarvis needs the microphone to listen. Android will not ask again, so it has to be turned on in the app\'s permissions.</string>
+
+    <plurals name="seconds">
+        <item quantity="one">%d second</item>
+        <item quantity="other">%d seconds</item>
+    </plurals>
+    <plurals name="minutes">
+        <item quantity="one">%d minute</item>
+        <item quantity="other">%d minutes</item>
+    </plurals>
+    <plurals name="hours">
+        <item quantity="one">%d hour</item>
+        <item quantity="other">%d hours</item>
+    </plurals>
 </resources>

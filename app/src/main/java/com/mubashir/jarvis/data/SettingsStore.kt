@@ -17,6 +17,8 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 data class Settings(
     val speakReplies: Boolean = true,
+    /** Whether spoken commands may act on the phone rather than only be talked about. */
+    val phoneControl: Boolean = true,
     val predictLength: Int = DEFAULT_PREDICT,
     val lastModelFile: String? = null,
 ) {
@@ -36,6 +38,7 @@ class SettingsStore(context: Context) {
 
     private fun read() = Settings(
         speakReplies = prefs.getBoolean(KEY_SPEAK, true),
+        phoneControl = prefs.getBoolean(KEY_CONTROL, true),
         predictLength = prefs.getInt(KEY_PREDICT, Settings.DEFAULT_PREDICT),
         lastModelFile = prefs.getString(KEY_MODEL, null),
     )
@@ -44,6 +47,8 @@ class SettingsStore(context: Context) {
 
     fun setPredictLength(tokens: Int) = update { it.copy(predictLength = tokens) }
 
+    fun setPhoneControl(on: Boolean) = update { it.copy(phoneControl = on) }
+
     fun setLastModelFile(fileName: String?) = update { it.copy(lastModelFile = fileName) }
 
     private fun update(change: (Settings) -> Settings) {
@@ -51,6 +56,7 @@ class SettingsStore(context: Context) {
         _settings.value = next
         prefs.edit()
             .putBoolean(KEY_SPEAK, next.speakReplies)
+            .putBoolean(KEY_CONTROL, next.phoneControl)
             .putInt(KEY_PREDICT, next.predictLength)
             .putString(KEY_MODEL, next.lastModelFile)
             .apply()
@@ -59,6 +65,7 @@ class SettingsStore(context: Context) {
     private companion object {
         const val NAME = "settings"
         const val KEY_SPEAK = "speak_replies"
+        const val KEY_CONTROL = "phone_control"
         const val KEY_PREDICT = "predict_length"
         const val KEY_MODEL = "last_model"
     }

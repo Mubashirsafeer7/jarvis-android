@@ -58,6 +58,8 @@ fun SettingsScreen(
     onDismissBenchmark: () -> Unit,
     onClearChat: () -> Unit,
     onOpenVoiceSettings: () -> Unit,
+    phoneControl: Boolean,
+    onSetPhoneControl: (Boolean) -> Unit,
     canInstallUpdates: Boolean,
     onCheckUpdate: () -> Unit,
     onDownloadUpdate: () -> Unit,
@@ -121,6 +123,22 @@ fun SettingsScreen(
                     Text(stringResource(R.string.action_open_settings))
                 }
             }
+        }
+
+        SettingsCard(title = stringResource(R.string.settings_control)) {
+            SwitchRow(
+                label = stringResource(R.string.settings_phone_control),
+                detail = stringResource(R.string.settings_phone_control_detail),
+                checked = phoneControl,
+                enabled = true,
+                onCheckedChange = onSetPhoneControl,
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = stringResource(R.string.settings_phone_control_list),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
         SettingsCard(title = stringResource(R.string.settings_brain)) {

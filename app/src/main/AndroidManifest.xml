@@ -19,6 +19,9 @@
          as the one already installed. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+    <!-- Setting a timer through the phone's own clock app. -->
+    <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
+
     <!-- RECORD_AUDIO otherwise implies a microphone is required. Jarvis is still
          usable by typing on a device without one. -->
     <uses-feature
@@ -33,6 +36,13 @@
         </intent>
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+        <!-- Opening apps by name. Android 11+ hides every other package unless
+             asked for, so without this the launcher list comes back empty and
+             "open YouTube" can never find anything. -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
         </intent>
     </queries>
 

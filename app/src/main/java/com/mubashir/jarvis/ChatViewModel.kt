@@ -8,6 +8,9 @@ import com.arm.aichat.InferenceEngine
 import com.mubashir.jarvis.data.StoredMessage
 import com.mubashir.jarvis.update.AvailableUpdate
 import com.mubashir.jarvis.model.DownloadState
+import com.mubashir.jarvis.tools.Command
+import com.mubashir.jarvis.tools.IntentRouter
+import com.mubashir.jarvis.tools.ToolOutcome
 import com.mubashir.jarvis.model.InstalledModel
 import com.mubashir.jarvis.model.ModelSpec
 import com.mubashir.jarvis.voice.MicLevel
@@ -177,6 +180,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun setPredictLength(tokens: Int) = settings.setPredictLength(tokens)
+
+    fun phoneControl(): Boolean = settings.settings.value.phoneControl
+
+    fun setPhoneControl(on: Boolean) = settings.setPhoneControl(on)
 
     fun predictLength(): Int = settings.settings.value.predictLength
 
@@ -410,8 +417,24 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun send(text: String, fromVoice: Boolean = false) {
         val prompt = text.trim()
         if (prompt.isEmpty() || _ui.value.generating || _ui.value.busy) return
-        if (_ui.value.loadedModel == null) return
         if (!fromVoice) _ui.update { it.copy(voiceMode = false) }
+
+        // A recognised command is carried out rather than described. This runs
+        // before the model both because it is instant and because a small model
+        // asked to emit a tool call gets it wrong often enough to matter.
+        // Anything the router is unsure of falls through, which is the safe
+        // direction: talking about a call is recoverable, placing one is not.
+        val command = if (settings.settings.value.phoneControl) {
+            IntentRouter.route(prompt)
+        } else {
+            null
+        }
+        if (command != null) {
+            runCommand(prompt, command)
+            return
+        }
+
+        if (_ui.value.loadedModel == null) return
 
         _ui.update {
             it.copy(
@@ -459,6 +482,27 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     speaker.speak(tail, interrupt = !spokenAnything)
                 }
             }
+            persistChat()
+        }
+    }
+
+    /** Carries out a recognised command and says what happened. */
+    private fun runCommand(prompt: String, command: Command) {
+        _ui.update {
+            it.copy(
+                messages = it.messages + ChatMessage(true, prompt),
+                error = null,
+            )
+        }
+        viewModelScope.launch {
+            val outcome = runtime.tools.run(command)
+            val spoken = when (outcome) {
+                is ToolOutcome.Done -> outcome.spoken
+                is ToolOutcome.NotYet -> outcome.spoken
+                is ToolOutcome.Failed -> outcome.spoken
+            }
+            _ui.update { it.copy(messages = it.messages + ChatMessage(false, spoken)) }
+            if (_ui.value.speakReplies) speaker.speak(spoken)
             persistChat()
         }
     }
