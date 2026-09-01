@@ -5,7 +5,11 @@ import android.content.Context
 import com.mubashir.jarvis.DeviceCapabilities
 import com.mubashir.jarvis.data.ChatStore
 import com.mubashir.jarvis.data.SettingsStore
+import com.mubashir.jarvis.data.BrainChoice
+import com.mubashir.jarvis.llm.Brain
 import com.mubashir.jarvis.llm.JarvisEngine
+import com.mubashir.jarvis.llm.LocalBrain
+import com.mubashir.jarvis.llm.RemoteBrain
 import com.mubashir.jarvis.model.DownloadStore
 import com.mubashir.jarvis.model.ModelManager
 import com.mubashir.jarvis.tools.Contacts
@@ -44,6 +48,20 @@ class JarvisRuntime(context: Context) : ComponentCallbacks2 {
     val updates = UpdateRepository(app)
     val installer = ApkInstaller(app)
     val capabilities = DeviceCapabilities.read(app)
+
+    private val localBrain = LocalBrain(engine)
+    private val remoteBrain = RemoteBrain(
+        baseUrl = { settings.settings.value.serverUrl },
+        model = { settings.settings.value.serverModel },
+        systemPrompt = JarvisEngine.systemPrompt(),
+    )
+
+    /** Whichever brain is selected right now. */
+    val brain: Brain
+        get() = when (settings.settings.value.brain) {
+            BrainChoice.Phone -> localBrain
+            BrainChoice.Server -> remoteBrain
+        }
 
     /**
      * Android asks for memory back before it starts killing processes. A loaded

@@ -34,6 +34,8 @@ import androidx.compose.ui.unit.dp
 import com.mubashir.jarvis.R
 import com.mubashir.jarvis.UiState
 import com.mubashir.jarvis.UpdateUi
+import androidx.compose.material3.OutlinedTextField
+import com.mubashir.jarvis.data.BrainChoice
 import com.mubashir.jarvis.data.Settings
 import com.mubashir.jarvis.ui.theme.NumericStyle
 
@@ -58,6 +60,13 @@ fun SettingsScreen(
     onDismissBenchmark: () -> Unit,
     onClearChat: () -> Unit,
     onOpenVoiceSettings: () -> Unit,
+    brainChoice: BrainChoice,
+    onSetBrain: (BrainChoice) -> Unit,
+    serverUrl: String,
+    onSetServerUrl: (String) -> Unit,
+    serverModel: String,
+    onSetServerModel: (String) -> Unit,
+    onCheckServer: () -> Unit,
     keepRescueCopy: Boolean,
     onSetKeepRescueCopy: (Boolean) -> Unit,
     phoneControl: Boolean,
@@ -144,6 +153,63 @@ fun SettingsScreen(
         }
 
         SettingsCard(title = stringResource(R.string.settings_brain)) {
+            Text(
+                text = stringResource(R.string.brain_detail),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                BrainChoice.entries.forEach { choice ->
+                    FilterChip(
+                        selected = choice == brainChoice,
+                        onClick = { onSetBrain(choice) },
+                        label = {
+                            Text(
+                                when (choice) {
+                                    BrainChoice.Phone -> stringResource(R.string.brain_phone)
+                                    BrainChoice.Server -> stringResource(R.string.brain_server)
+                                },
+                            )
+                        },
+                    )
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+
+            if (brainChoice == BrainChoice.Server) {
+                OutlinedTextField(
+                    value = serverUrl,
+                    onValueChange = onSetServerUrl,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.server_url_label)) },
+                    placeholder = { Text(stringResource(R.string.server_url_hint)) },
+                    singleLine = true,
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = serverModel,
+                    onValueChange = onSetServerModel,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.server_model_label)) },
+                    placeholder = { Text(stringResource(R.string.server_model_hint)) },
+                    singleLine = true,
+                )
+                Spacer(Modifier.height(10.dp))
+                OutlinedButton(onClick = onCheckServer, enabled = serverUrl.isNotBlank()) {
+                    Text(stringResource(R.string.server_check))
+                }
+                ui.serverCheck?.let { result ->
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = result,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(Modifier.height(16.dp))
+            }
+
             Text(
                 text = ui.loadedModel?.let(::prettyModelName)
                     ?: stringResource(R.string.settings_no_model),

@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.arm.aichat.InferenceEngine
+import com.mubashir.jarvis.data.BrainChoice
 import com.mubashir.jarvis.data.StoredMessage
 import com.mubashir.jarvis.update.AvailableUpdate
 import com.mubashir.jarvis.model.DownloadState
@@ -85,6 +86,10 @@ data class UiState(
     /** Free space on the model volume. Sampled on refresh, never during layout. */
     val freeSpaceGb: Double = 0.0,
     val update: UpdateUi = UpdateUi.Idle,
+    /** What is doing the thinking, for the header. */
+    val brainLabel: String = "",
+    /** Result of the last server check, shown in settings. */
+    val serverCheck: String? = null,
     /** Something the app needs from the user before it can act. */
     val ask: Ask? = null,
     val notice: String? = null,
@@ -130,6 +135,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         refreshInstalled()
         resumePendingDownload()
         reloadLastModel()
+        refreshBrainLabel()
         viewModelScope.launch {
             speaker.speaking.collect { on -> _ui.update { it.copy(speaking = on) } }
         }
@@ -194,6 +200,46 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun phoneControl(): Boolean = settings.settings.value.phoneControl
 
     fun setPhoneControl(on: Boolean) = settings.setPhoneControl(on)
+
+    fun brainChoice(): BrainChoice = settings.settings.value.brain
+
+    fun setBrain(choice: BrainChoice) {
+        settings.setBrain(choice)
+        _ui.update { it.copy(serverCheck = null) }
+        refreshBrainLabel()
+    }
+
+    fun serverUrl(): String = settings.settings.value.serverUrl
+
+    fun setServerUrl(url: String) {
+        settings.setServerUrl(url)
+        _ui.update { it.copy(serverCheck = null) }
+    }
+
+    fun serverModel(): String = settings.settings.value.serverModel
+
+    fun setServerModel(model: String) {
+        settings.setServerModel(model)
+        _ui.update { it.copy(serverCheck = null) }
+        refreshBrainLabel()
+    }
+
+    /** Asks the server what it is, so a wrong address is found here and not mid-answer. */
+    fun checkServer() {
+        _ui.update { it.copy(serverCheck = getApplication<Application>().getString(R.string.server_checking)) }
+        viewModelScope.launch {
+            val result = runtime.brain.check()
+            _ui.update {
+                it.copy(
+                    serverCheck = result.getOrElse { e -> describeFailure(e) },
+                )
+            }
+        }
+    }
+
+    private fun refreshBrainLabel() {
+        _ui.update { it.copy(brainLabel = runtime.brain.label) }
+    }
 
     fun keepRescueCopy(): Boolean = settings.settings.value.keepRescueCopy
 
@@ -427,6 +473,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 .onSuccess {
                     settings.setLastModelFile(model.name)
                     _ui.update { it.copy(busy = false, loadedModel = model.name) }
+                    refreshBrainLabel()
                 }
                 .onFailure { e ->
                     // runCatching swallows cancellation; rethrow so a cleared
@@ -472,7 +519,11 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
 
-        if (_ui.value.loadedModel == null) return
+        // A server brain needs no model on the phone, so readiness is the
+        // brain's question rather than the model list's.
+        if (settings.settings.value.brain == BrainChoice.Phone && _ui.value.loadedModel == null) {
+            return
+        }
 
         _ui.update {
             it.copy(
@@ -490,7 +541,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             val sentences = SentenceSplitter()
             var spokenAnything = false
             try {
-                engine.ask(prompt, settings.settings.value.predictLength).collect { token ->
+                runtime.brain.ask(prompt, settings.settings.value.predictLength).collect { token ->
                     reply.append(token)
                     _ui.update { s -> s.copy(messages = s.messages.replaceLast(reply.toString(), true)) }
 

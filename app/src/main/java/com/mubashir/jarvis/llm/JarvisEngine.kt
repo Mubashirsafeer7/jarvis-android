@@ -103,11 +103,14 @@ class JarvisEngine(context: Context) {
     // the engine for the life of the process avoids the whole class of problem;
     // unload() is what callers actually want.
 
-    private companion object {
+    companion object {
+        /** The persona, shared with any brain that answers on Jarvis's behalf. */
+        fun systemPrompt(): String = SYSTEM_PROMPT
+
         // 512 cut long answers off mid-sentence.
-        const val DEFAULT_PREDICT = 1024
-        const val SETTLE_TIMEOUT_MS = 30_000L
-        const val MAX_PREP_ROUNDS = 4
+        private const val DEFAULT_PREDICT = 1024
+        private const val SETTLE_TIMEOUT_MS = 30_000L
+        private const val MAX_PREP_ROUNDS = 4
 
         // A 3B model writes far better English than Hinglish — asked for Hinglish
         // it produced sentences that were not really any language. So it answers
@@ -119,7 +122,7 @@ class JarvisEngine(context: Context) {
         // do. Commands themselves never reach the model — the router carries
         // those out directly — but questions about them do, and the answer to
         // "can you turn on the torch?" has to be true.
-        const val SYSTEM_PROMPT = """You are Jarvis, a personal assistant running entirely on Mubashir's phone.
+        private const val SYSTEM_PROMPT = """You are Jarvis, a personal assistant running entirely on Mubashir's phone.
 
 How to answer:
 - Answer in English, even when the question is in Hindi, Urdu or Hinglish. You understand all of them.

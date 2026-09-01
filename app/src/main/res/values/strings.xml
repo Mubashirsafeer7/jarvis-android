@@ -71,6 +71,15 @@
     <string name="settings_speak_replies_detail">Jarvis speaks each sentence as it is written.</string>
     <string name="settings_no_recogniser">This phone has no speech recogniser available.</string>
     <string name="settings_brain">BRAIN</string>
+    <string name="brain_phone">This phone</string>
+    <string name="brain_server">My server</string>
+    <string name="brain_detail">A model on the phone answers offline but is small. A machine of your own on the network can run something far larger; it is still yours, with no account and no limits.</string>
+    <string name="server_url_label">Server address</string>
+    <string name="server_url_hint">http://100.64.0.5:8080</string>
+    <string name="server_model_label">Model name</string>
+    <string name="server_model_hint">Leave blank for the server default</string>
+    <string name="server_check">Test connection</string>
+    <string name="server_checking">Checking…</string>
     <string name="settings_no_model">No model loaded</string>
     <string name="settings_ram_free">%1$.1f GB RAM · %2$.1f GB free</string>
     <string name="settings_manage_models">Manage models</string>

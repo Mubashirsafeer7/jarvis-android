@@ -81,9 +81,11 @@ fun ChatScreen(
         else -> ReactorState.Idle
     }
 
+    // Whatever is actually answering — the phone's model or a server — so it is
+    // never a guess which one a reply came from.
     val modelLabel = ui.installed.firstOrNull { it.file.name == ui.loadedModel }?.displayName
         ?: ui.loadedModel?.let(::prettyModelName)
-        ?: ""
+        ?: ui.brainLabel
 
     Box(modifier.fillMaxSize()) {
         Column(
