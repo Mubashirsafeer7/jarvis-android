@@ -26,6 +26,14 @@
     <uses-permission android:name="android.permission.SEND_SMS" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
 
+    <!-- Asking for CALL_PHONE and SEND_SMS otherwise declares that this app
+         requires telephony hardware, which quietly excludes tablets and any
+         device without a radio. Jarvis is still useful on one; it just cannot
+         call from it. -->
+    <uses-feature
+        android:name="android.hardware.telephony"
+        android:required="false" />
+
     <!-- Setting a timer through the phone's own clock app. -->
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
 

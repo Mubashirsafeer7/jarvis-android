@@ -1,6 +1,8 @@
 package com.mubashir.jarvis.tools
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.content.Intent
 import android.hardware.camera2.CameraManager
 import android.net.Uri
@@ -9,6 +11,7 @@ import android.telephony.SmsManager
 import android.os.BatteryManager
 import android.provider.AlarmClock
 import com.mubashir.jarvis.R
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -62,7 +65,18 @@ class ToolRunner(private val context: Context) {
         }
     }
 
+    private fun granted(permission: String) =
+        ContextCompat.checkSelfPermission(context, permission) ==
+            PackageManager.PERMISSION_GRANTED
+
     private fun call(contact: Contact): ToolOutcome = runCatching {
+        // Checked here as well as before the confirmation was shown. Nothing
+        // that dials a number should trust that somebody upstream did it — and
+        // reaching the dialler without it arrives as a SecurityException, which
+        // reads to the user as an unexplained failure.
+        if (!granted(Manifest.permission.CALL_PHONE)) {
+            return ToolOutcome.Failed(context.getString(R.string.tool_no_call_permission))
+        }
         val intent = Intent(Intent.ACTION_CALL)
             .setData(Uri.fromParts("tel", contact.number, null))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -71,6 +85,9 @@ class ToolRunner(private val context: Context) {
     }.getOrElse { ToolOutcome.Failed(context.getString(R.string.tool_call_failed)) }
 
     private fun sms(contact: Contact, message: String): ToolOutcome = runCatching {
+        if (!granted(Manifest.permission.SEND_SMS)) {
+            return ToolOutcome.Failed(context.getString(R.string.tool_no_sms_permission))
+        }
         // SmsManager only became available through getSystemService in API 31,
         // and minSdk here is 30 — on that one release it has to come from the
         // deprecated accessor or it is simply null.
