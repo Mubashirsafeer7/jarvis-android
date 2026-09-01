@@ -45,17 +45,18 @@ jobs:
           fi
           echo "NDK ready at $ANDROID_HOME/ndk/$ndk"
 
-      # Written only when the secret exists. Until it does the key committed to
-      # the repository is used, so this can land before the secret does without
-      # breaking the build or changing the signature.
+      # There is no key in the repository any more, so without the secret the
+      # build falls back to AGP's own debug key and the fingerprint check below
+      # fails — loudly, rather than shipping an APK that cannot install over
+      # what is on the phone.
       - name: Restore signing key
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
           set -euo pipefail
           if [ -z "${KEYSTORE_BASE64:-}" ]; then
-            echo "No KEYSTORE_BASE64 secret; using the key committed to the repo."
-            exit 0
+            echo "::error::KEYSTORE_BASE64 is not set."
+            exit 1
           fi
           printf '%s' "$KEYSTORE_BASE64" | base64 -d > release.keystore
           # A truncated or mangled secret would otherwise sail through and
@@ -100,6 +101,10 @@ jobs:
         run: ./gradlew lintDebug --no-daemon
 
       - name: Build debug APK
+        # The password goes through the environment, not the command line, so it
+        # does not show up in a process list or a build scan.
+        env:
+          JARVIS_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
           ./gradlew assembleDebug --no-daemon \
             -PjarvisVersionCode=${{ github.run_number }} \
@@ -135,7 +140,7 @@ jobs:
       - name: Check the APK is signed with the expected key
         run: |
           set -uo pipefail
-          expected="4662:46B3:E723:650A:12A5:A82F:A112:4D1B:2CE7:D789:15BC:9A9E:70B2:8419:A72E:955B"
+          expected="62C85F7A0ACCF60A27A3122214038751139358310840F72C3153A7FF6777E4BC"
           apk=$(find app/build/outputs/apk/debug -name '*.apk' -print -quit)
           if [ -z "$apk" ]; then
             echo "::error::No APK was produced."

@@ -71,6 +71,8 @@ jobs:
           echo "Building $name (versionCode $code)"
 
       - name: Build release APK
+        env:
+          JARVIS_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
           ./gradlew assembleRelease --no-daemon \
             -PjarvisVersionCode=${{ steps.version.outputs.code }} \
@@ -79,7 +81,7 @@ jobs:
       - name: Check the APK is signed with the expected key
         run: |
           set -uo pipefail
-          expected="466246B3E723650A12A5A82FA1124D1B2CE7D78915BC9A9E70B28419A72E955B"
+          expected="62C85F7A0ACCF60A27A3122214038751139358310840F72C3153A7FF6777E4BC"
           apk=$(find app/build/outputs/apk/release -name '*.apk' -print -quit)
           if [ -z "$apk" ]; then
             echo "::error::No APK was produced."

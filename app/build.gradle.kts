@@ -28,30 +28,38 @@ android {
     // of demanding an uninstall — which would take the multi-gigabyte model with
     // it. AGP otherwise invents a fresh debug key on each CI runner.
     //
-    // The key comes from a file CI writes out of a repository secret. Until that
-    // secret exists the copy committed here is used, so nothing breaks in
-    // between; once it does, the committed copy is removed from the repository
-    // and its history, before any of this becomes public.
-    val keystoreFromSecret = rootProject.file("release.keystore")
-    val committedKeystore = file("keystore/jarvis.keystore")
-    val signingKeystore = if (keystoreFromSecret.exists()) keystoreFromSecret else committedKeystore
+    // The key is written by CI out of a repository secret and is never in the
+    // repository. The first one was committed here while the repo was private
+    // and was still present when it went public, so it is gone and this is its
+    // replacement: a new key, and a password that only ever exists as a secret
+    // rather than as a literal in this file.
+    //
+    // Without the secret there is no signing config at all and AGP falls back to
+    // its own debug key. That still builds and still runs; it just will not
+    // install over a build signed with the real one, which is what the
+    // fingerprint check in CI is there to catch.
+    val releaseKeystore = rootProject.file("release.keystore")
+    val keystorePassword: String? =
+        (project.findProperty("jarvisKeystorePassword") as String?)
+            ?: System.getenv("JARVIS_KEYSTORE_PASSWORD")
 
     signingConfigs {
-        create("jarvis") {
-            storeFile = signingKeystore
-            storePassword = (project.findProperty("jarvisKeystorePassword") as String?)
-                ?: "REMOVED-OLD-KEYSTORE-PASSWORD"
-            keyAlias = (project.findProperty("jarvisKeyAlias") as String?) ?: "jarvis"
-            keyPassword = (project.findProperty("jarvisKeyPassword") as String?) ?: "REMOVED-OLD-KEYSTORE-PASSWORD"
+        if (releaseKeystore.exists() && !keystorePassword.isNullOrBlank()) {
+            create("jarvis") {
+                storeFile = releaseKeystore
+                storePassword = keystorePassword
+                keyAlias = "jarvis"
+                keyPassword = keystorePassword
+            }
         }
     }
 
     buildTypes {
         debug {
-            signingConfig = signingConfigs.getByName("jarvis")
+            signingConfigs.findByName("jarvis")?.let { signingConfig = it }
         }
         release {
-            signingConfig = signingConfigs.getByName("jarvis")
+            signingConfigs.findByName("jarvis")?.let { signingConfig = it }
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
