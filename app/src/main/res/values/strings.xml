@@ -1,4 +1,40 @@
 <resources>
     <string name="app_name">Jarvis</string>
     <string name="tagline">Offline. No API. Yours.</string>
+
+    <!-- Voice -->
+    <string name="voice_listening">Listening…</string>
+
+    <!-- Models: storage and export -->
+    <string name="error_needs_space">Not enough space — %.1f GB needed</string>
+    <string name="notice_saved_to">Saved to %s</string>
+    <string name="export_could_not_create">Could not create the file in Downloads</string>
+    <string name="export_could_not_write">Could not write to Downloads</string>
+
+    <!-- Models: import -->
+    <string name="import_unreadable">That file could not be read</string>
+    <string name="import_not_gguf">That is not a GGUF model file</string>
+    <string name="import_failed">The model could not be saved</string>
+
+    <!-- Models: download -->
+    <string name="download_notification">Downloading Jarvis\'s brain</string>
+    <string name="download_record_missing">No record of that download</string>
+    <string name="download_pending">Waiting to start…</string>
+    <string name="download_finished_no_file">The download finished but the file is missing</string>
+    <string name="download_not_gguf">That is not a GGUF model — the link may have changed</string>
+    <string name="download_truncated">Only part of the file arrived (%1$.2f GB of %2$.2f GB). Try again.</string>
+    <string name="download_could_not_finish">The download could not be saved</string>
+
+    <string name="paused_network">Waiting for a network</string>
+    <string name="paused_wifi">Waiting for Wi-Fi</string>
+    <string name="paused_retry">Retrying…</string>
+    <string name="paused_unknown">Paused (code %d)</string>
+
+    <string name="failed_space">Not enough room on the phone</string>
+    <string name="failed_no_storage">Storage not found</string>
+    <string name="failed_cannot_resume">The download could not resume — start it again</string>
+    <string name="failed_network">The network dropped</string>
+    <string name="failed_file">The file could not be written</string>
+    <string name="failed_http">The server refused (HTTP %d). The link may have changed — download the model yourself and import it.</string>
+    <string name="failed_unknown">The download failed (code %d)</string>
 </resources>

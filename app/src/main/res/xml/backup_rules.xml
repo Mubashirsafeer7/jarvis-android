@@ -1,2 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<full-backup-content />
+<full-backup-content>
+    <!-- The download id belongs to this install on this phone. Restored onto a
+         different device it names a download that does not exist, and the app
+         opened on an error about a download nobody started. -->
+    <exclude domain="sharedpref" path="downloads.xml" />
+    <!-- Multi-gigabyte model files. Backup would skip them anyway; saying so
+         here makes it a decision rather than an accident. -->
+    <exclude domain="external" path="models" />
+</full-backup-content>

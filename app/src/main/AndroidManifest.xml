@@ -8,6 +8,18 @@
     <!-- Listening. The recogniser runs on-device, so nothing leaves the phone. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
+    <!-- The model download reports progress through a notification, and on
+         Android 13+ that is silently dropped without this permission — which is
+         why "you can close the app, the download continues" could not be
+         confirmed from the phone. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- RECORD_AUDIO otherwise implies a microphone is required. Jarvis is still
+         usable by typing on a device without one. -->
+    <uses-feature
+        android:name="android.hardware.microphone"
+        android:required="false" />
+
     <!-- Android 11+ hides other packages unless asked for. Without this the
          speech recogniser and TTS engine are invisible to the app. -->
     <queries>
@@ -20,6 +32,7 @@
     </queries>
 
     <application
+        android:name=".JarvisApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"

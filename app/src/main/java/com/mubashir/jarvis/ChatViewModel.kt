@@ -5,15 +5,11 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.arm.aichat.InferenceEngine
-import com.mubashir.jarvis.llm.JarvisEngine
 import com.mubashir.jarvis.model.DownloadState
-import com.mubashir.jarvis.model.DownloadStore
 import com.mubashir.jarvis.model.InstalledModel
-import com.mubashir.jarvis.model.ModelManager
 import com.mubashir.jarvis.model.ModelSpec
 import com.mubashir.jarvis.voice.MicLevel
 import com.mubashir.jarvis.voice.SentenceSplitter
-import com.mubashir.jarvis.voice.Speaker
 import com.mubashir.jarvis.voice.VoiceInput
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -51,17 +47,20 @@ data class UiState(
     val speakReplies: Boolean = true,
     val voiceNote: String? = null,
     val benchmark: String? = null,
+    /** Free space on the model volume. Sampled on refresh, never during layout. */
+    val freeSpaceGb: Double = 0.0,
     val notice: String? = null,
     val error: String? = null,
 )
 
 class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
-    private val models = ModelManager(app)
-    private val downloadStore = DownloadStore(app)
-    private val engine = JarvisEngine(app)
-    private val speaker = Speaker(app)
-    private val voice = VoiceInput(app)
+    private val runtime = (app as JarvisApplication).runtime
+    private val models = runtime.models
+    private val downloadStore = runtime.downloads
+    private val engine = runtime.engine
+    private val speaker = runtime.speaker
+    private val voice = runtime.voice
     private val micLevel = MicLevel()
 
     private val _ui = MutableStateFlow(UiState())
@@ -70,13 +69,17 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     val engineState: StateFlow<InferenceEngine.State> = engine.state
 
     private var downloadId: Long? = null
+    private var downloadWatch: Job? = null
     private var generation: Job? = null
 
-    val capabilities = DeviceCapabilities.read(app)
+    val capabilities = runtime.capabilities
 
     private var listening: Job? = null
 
     init {
+        // The engine is process-scoped now, so a model loaded before this screen
+        // existed is still loaded — reflect that rather than showing setup again.
+        _ui.update { it.copy(loadedModel = engine.loadedModelPath?.let { path -> File(path).name }) }
         refreshInstalled()
         resumePendingDownload()
         viewModelScope.launch {
@@ -87,6 +90,9 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun micAvailable(): Boolean = voice.isAvailable()
 
     fun hasMicPermission(): Boolean = voice.hasMicPermission()
+
+    /** Why the phone cannot speak, if it cannot. Null when speech works. */
+    fun speechUnavailableReason(): String? = speaker.unavailableReason
 
     fun toggleSpeakReplies() {
         val on = !_ui.value.speakReplies
@@ -111,7 +117,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 voice.listen().collect { event ->
                     when (event) {
                         is VoiceInput.Event.Listening ->
-                            _ui.update { it.copy(voiceNote = "Sun raha hoon…") }
+                            _ui.update { it.copy(voiceNote = getApplication<Application>().getString(R.string.voice_listening)) }
 
                         is VoiceInput.Event.Partial ->
                             _ui.update { it.copy(heardSoFar = event.text) }
@@ -159,21 +165,44 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         _ui.update { it.copy(voiceMode = false) }
     }
 
+    /**
+     * Listing models stats every file and reads a header from each, and measuring
+     * free space is a syscall — neither belongs on the thread drawing the screen.
+     */
     fun refreshInstalled() {
-        _ui.update { it.copy(installed = models.installed()) }
+        viewModelScope.launch {
+            val (found, free) = withContext(Dispatchers.IO) {
+                models.installed() to models.usableSpaceBytes() / BYTES_PER_GB
+            }
+            _ui.update { it.copy(installed = found, freeSpaceGb = free) }
+        }
     }
-
-    fun usableSpaceGb(): Double = models.usableSpaceBytes() / 1_073_741_824.0
 
     fun download(spec: ModelSpec) {
         if (_ui.value.downloadingSpec != null) return
-        if (models.usableSpaceBytes() < spec.approxBytes) {
-            _ui.update { it.copy(error = "Storage kam hai — %.1f GB chahiye".format(spec.approxBytes / 1_073_741_824.0)) }
-            return
+        viewModelScope.launch {
+            val free = withContext(Dispatchers.IO) { models.usableSpaceBytes() }
+            if (free < spec.approxBytes) {
+                _ui.update {
+                    it.copy(
+                        error = getApplication<Application>().getString(
+                            R.string.error_needs_space, spec.approxBytes / BYTES_PER_GB,
+                        ),
+                    )
+                }
+                return@launch
+            }
+            // enqueue throws if the user has disabled the download manager, which
+            // is common enough on custom ROMs to be worth surviving.
+            val id = runCatching { models.startDownload(spec) }
+                .getOrElse { e ->
+                    if (e is CancellationException) throw e
+                    _ui.update { it.copy(error = describeFailure(e)) }
+                    return@launch
+                }
+            downloadStore.remember(id, spec.id)
+            watchDownload(id, spec, autoLoad = true)
         }
-        val id = models.startDownload(spec)
-        downloadStore.remember(id, spec.id)
-        watchDownload(id, spec, autoLoad = true)
     }
 
     /**
@@ -186,45 +215,60 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun watchDownload(id: Long, spec: ModelSpec, autoLoad: Boolean) {
+        downloadWatch?.cancel()
         downloadId = id
         _ui.update { it.copy(downloadingSpec = spec, error = null) }
-        viewModelScope.launch {
-            models.observeDownload(id, spec).collect { state ->
-                _ui.update { it.copy(download = state) }
-                when (state) {
-                    is DownloadState.Done -> {
-                        downloadId = null
-                        downloadStore.forget()
-                        _ui.update { it.copy(downloadingSpec = null, download = null) }
-                        refreshInstalled()
-                        if (autoLoad) load(state.file)
-                    }
-
-                    is DownloadState.Failed -> {
-                        downloadId = null
-                        downloadStore.forget()
-                        _ui.update {
-                            it.copy(downloadingSpec = null, download = null, error = state.reason)
+        downloadWatch = viewModelScope.launch {
+            try {
+                models.observeDownload(id, spec).collect { state ->
+                    _ui.update { it.copy(download = state) }
+                    when (state) {
+                        is DownloadState.Done -> {
+                            finishDownload()
+                            refreshInstalled()
+                            if (autoLoad) load(state.file)
                         }
-                    }
 
-                    is DownloadState.Running, is DownloadState.Waiting -> Unit
+                        is DownloadState.Failed -> {
+                            finishDownload()
+                            _ui.update { it.copy(error = state.reason) }
+                        }
+
+                        is DownloadState.Running, is DownloadState.Waiting -> Unit
+                    }
                 }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                // Querying the download manager can fail outright. It used to take
+                // the whole app down with it, mid-download.
+                finishDownload()
+                _ui.update { it.copy(error = describeFailure(e)) }
             }
         }
     }
 
-    fun cancelDownload() {
-        downloadId?.let(models::cancelDownload)
+    private fun finishDownload() {
         downloadId = null
         downloadStore.forget()
         _ui.update { it.copy(downloadingSpec = null, download = null) }
     }
 
+    fun cancelDownload() {
+        // Cancel the watcher first. Left running, it saw the row disappear half a
+        // second later and reported the user's own cancel as a failure — and if a
+        // new download had started by then, cleared that one's state instead.
+        downloadWatch?.cancel()
+        downloadWatch = null
+        downloadId?.let(models::cancelDownload)
+        finishDownload()
+    }
+
     fun import(uri: Uri, fileName: String) {
         viewModelScope.launch {
             _ui.update { it.copy(busy = true, error = null) }
-            models.import(uri, fileName)
+            // Copying gigabytes is not something to do on the main thread.
+            withContext(Dispatchers.IO) { models.import(uri, fileName) }
                 .onSuccess { file ->
                     refreshInstalled()
                     load(file)
@@ -239,13 +283,12 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun load(model: File) {
+        if (_ui.value.busy) return
         viewModelScope.launch {
             _ui.update { it.copy(busy = true, error = null, benchmark = null) }
             runCatching { engine.load(model) }
                 .onSuccess {
-                    _ui.update {
-                        it.copy(busy = false, loadedModel = model.name, messages = emptyList())
-                    }
+                    _ui.update { it.copy(busy = false, loadedModel = model.name) }
                 }
                 .onFailure { e ->
                     // runCatching swallows cancellation; rethrow so a cleared
@@ -257,18 +300,24 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun delete(model: InstalledModel) {
-        if (models.delete(model)) {
+        if (_ui.value.busy) return
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { models.delete(model) }
             if (_ui.value.loadedModel == model.file.name) {
-                engine.unload()
+                runCatching { engine.unload() }
                 _ui.update { it.copy(loadedModel = null, messages = emptyList()) }
             }
+            // Refresh whatever delete reported. It returns false when the file
+            // was already gone, and skipping the refresh then left a phantom row
+            // in the list still offering to load it.
             refreshInstalled()
         }
     }
 
     fun send(text: String, fromVoice: Boolean = false) {
         val prompt = text.trim()
-        if (prompt.isEmpty() || _ui.value.generating) return
+        if (prompt.isEmpty() || _ui.value.generating || _ui.value.busy) return
+        if (_ui.value.loadedModel == null) return
         if (!fromVoice) _ui.update { it.copy(voiceMode = false) }
 
         _ui.update {
@@ -323,6 +372,9 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun stopGenerating() {
         generation?.cancel()
         generation = null
+        // Sentences already handed to the queue kept playing after Stop, so the
+        // only way to shut Jarvis up was to turn speech off entirely.
+        speaker.stop()
         _ui.update { s ->
             s.copy(
                 messages = s.messages.map { it.copy(streaming = false) },
@@ -332,6 +384,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun benchmark() {
+        if (_ui.value.busy) return
         viewModelScope.launch {
             _ui.update { it.copy(busy = true, benchmark = null, error = null) }
             runCatching { engine.benchmark() }
@@ -347,12 +400,19 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Copies a model to Downloads so an uninstall cannot take it with it. */
     fun export(model: InstalledModel) {
+        if (_ui.value.busy) return
         viewModelScope.launch {
             _ui.update { it.copy(busy = true, error = null, notice = null) }
             val result = withContext(Dispatchers.IO) { models.exportToDownloads(model) }
             result
                 .onSuccess { path ->
-                    _ui.update { it.copy(busy = false, notice = "Copy ho gaya: $path") }
+                    _ui.update {
+                        it.copy(
+                            busy = false,
+                            notice = getApplication<Application>()
+                                .getString(R.string.notice_saved_to, path),
+                        )
+                    }
                 }
                 .onFailure { e ->
                     if (e is CancellationException) throw e
@@ -363,12 +423,15 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     fun dismissError() = _ui.update { it.copy(error = null, notice = null) }
 
-    override fun onCleared() {
-        speaker.shutdown()
-        engine.destroy()
-        super.onCleared()
-    }
+    // Nothing is torn down here on purpose. The engine, speaker and recogniser
+    // belong to the process, not to this screen: destroying the engine on the way
+    // out left the native singleton dead for the rest of the process, and every
+    // later model load failed until the app was force-stopped.
 
     private fun List<ChatMessage>.replaceLast(text: String, streaming: Boolean) =
         if (isEmpty()) this else dropLast(1) + last().copy(text = text, streaming = streaming)
+
+    private companion object {
+        const val BYTES_PER_GB = 1_073_741_824.0
+    }
 }

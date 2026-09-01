@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -23,10 +24,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,18 +57,22 @@ private fun JarvisApp(modifier: Modifier = Modifier) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
-    // Shown while a model is loaded; also the way back to the picker.
-    var showSetup by remember { mutableStateOf(true) }
+    // Means "the user asked for the model manager". With no model loaded the
+    // setup screen shows anyway, so this starts closed.
+    var showSetup by rememberSaveable { mutableStateOf(false) }
 
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
-        if (uri != null) vm.import(uri, context.displayNameOf(uri))
+        if (uri != null) {
+            vm.import(uri, context.displayNameOf(uri))
+            showSetup = false
+        }
     }
 
     // The mic button asks for permission the first time, then listens. Granting
     // it mid-session has to flip this back on without a restart.
-    var micGranted by remember { mutableStateOf(vm.hasMicPermission()) }
+    var micGranted by rememberSaveable { mutableStateOf(vm.hasMicPermission()) }
     val micPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -76,10 +80,9 @@ private fun JarvisApp(modifier: Modifier = Modifier) {
         if (granted) vm.startListening()
     }
 
-    // Leave the picker once a model is actually loaded. As an effect, not a
-    // write during composition.
-    LaunchedEffect(ui.loadedModel, ui.busy) {
-        if (ui.loadedModel != null && !ui.busy) showSetup = false
+    BackHandler(enabled = ui.voiceMode) { vm.exitVoiceMode() }
+    BackHandler(enabled = !ui.voiceMode && showSetup && ui.loadedModel != null) {
+        showSetup = false
     }
 
     Box(modifier.fillMaxSize()) {
@@ -87,11 +90,11 @@ private fun JarvisApp(modifier: Modifier = Modifier) {
             SetupScreen(
                 ui = ui,
                 caps = vm.capabilities,
-                freeSpaceGb = vm.usableSpaceGb(),
+                freeSpaceGb = ui.freeSpaceGb,
                 onDownload = vm::download,
                 onCancelDownload = vm::cancelDownload,
                 onImport = { picker.launch(arrayOf("*/*")) },
-                onLoad = { vm.load(it.file) },
+                onLoad = { vm.load(it.file); showSetup = false },
                 onDelete = vm::delete,
                 onExport = vm::export,
             )
