@@ -32,6 +32,7 @@ import com.mubashir.jarvis.agent.StepOutcome
 import com.mubashir.jarvis.agent.asLines
 import com.mubashir.jarvis.llm.Persona
 import com.mubashir.jarvis.memory.Fact
+import com.mubashir.jarvis.sense.NoticeListener
 import com.mubashir.jarvis.memory.FactSource
 import com.mubashir.jarvis.memory.MemoryNoticer
 import com.mubashir.jarvis.memory.MemoryRules
@@ -1214,6 +1215,13 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun forgetEverything() {
         viewModelScope.launch { memory.forgetEverything() }
     }
+
+    /**
+     * Read fresh each time rather than remembered. Notification access can be
+     * revoked from system settings while the app is not running, and the app is
+     * never told.
+     */
+    fun noticesAllowed(): Boolean = NoticeListener.allowed(getApplication())
 
     fun planJobs(): Boolean = settings.settings.value.planJobs
 

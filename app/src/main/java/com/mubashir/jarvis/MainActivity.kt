@@ -51,6 +51,7 @@ import com.mubashir.jarvis.ui.SettingsScreen
 import com.mubashir.jarvis.ui.SetupScreen
 import com.mubashir.jarvis.ui.WakingScreen
 import com.mubashir.jarvis.ui.theme.JarvisTheme
+import com.mubashir.jarvis.sense.NoticeListener
 import com.mubashir.jarvis.update.UpdateNotifier
 import com.mubashir.jarvis.voice.WakeWordService
 
@@ -261,6 +262,10 @@ private fun JarvisApp(openUpdates: Int = 0, woken: Int = 0, modifier: Modifier =
                     } else {
                         vm.setWakeWord(on)
                     }
+                },
+                noticesAllowed = vm.noticesAllowed(),
+                onOpenNoticeSettings = {
+                    runCatching { context.startActivity(NoticeListener.settingsIntent()) }
                 },
                 planJobs = vm.planJobs(),
                 onSetPlanJobs = vm::setPlanJobs,

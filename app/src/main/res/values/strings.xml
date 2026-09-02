@@ -161,7 +161,13 @@
     <string name="tool_no_location">I need permission to check your location.</string>
     <string name="location_switched_off">Location is switched off on the phone, so there is nothing for me to read.</string>
     <string name="tool_no_calendar">I need permission to read your calendar.</string>
-    <string name="tool_no_notifications">I cannot read your notifications yet.</string>
+    <string name="tool_no_notifications">I need notification access for that. It has to be switched on in the phone\'s settings — Android has no dialog for it. Settings → Notification access.</string>
+    <string name="notifications_starting">Notification access is on, but Android has not connected me yet. Try again in a moment.</string>
+    <string name="settings_notices">Notifications</string>
+    <string name="settings_notices_detail">Lets Jarvis answer "what did I miss". Nothing is written to disk — it is held in memory only, and forgotten the moment access is turned off.</string>
+    <string name="settings_notices_on">Notification access is on.</string>
+    <string name="settings_notices_off">Not switched on. Android has no dialog for this one; it has to be done in system settings.</string>
+    <string name="settings_notices_open">Notification access settings</string>
     <string name="tool_no_alarm">I cannot set alarms yet.</string>
 
     <string name="settings_about">ABOUT</string>

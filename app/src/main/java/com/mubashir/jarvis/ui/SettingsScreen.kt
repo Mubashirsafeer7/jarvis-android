@@ -85,6 +85,8 @@ fun SettingsScreen(
     onForgetEverything: () -> Unit,
     wakeWord: Boolean,
     onSetWakeWord: (Boolean) -> Unit,
+    noticesAllowed: Boolean,
+    onOpenNoticeSettings: () -> Unit,
     planJobs: Boolean,
     onSetPlanJobs: (Boolean) -> Unit,
     onInstallWakeModel: () -> Unit,
@@ -185,6 +187,34 @@ fun SettingsScreen(
                 TextButton(onClick = onOpenVoiceSettings) {
                     Text(stringResource(R.string.action_open_settings))
                 }
+            }
+        }
+
+        SettingsCard(title = stringResource(R.string.settings_notices)) {
+            Text(
+                text = stringResource(R.string.settings_notices_detail),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = stringResource(
+                    if (noticesAllowed) R.string.settings_notices_on
+                    else R.string.settings_notices_off,
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (noticesAllowed) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+            )
+            // No switch, on purpose. There is nothing this app can toggle —
+            // Android grants notification access only from its own settings
+            // screen, and a switch here that could not actually change anything
+            // would be a lie about who is in control.
+            OutlinedButton(onClick = onOpenNoticeSettings) {
+                Text(stringResource(R.string.settings_notices_open))
             }
         }
 

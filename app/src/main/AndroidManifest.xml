@@ -121,6 +121,21 @@
             android:exported="false"
             android:foregroundServiceType="microphone" />
 
+        <!-- Reads the shade so "what did I miss" has an answer. Exported and
+             bound by the system, which is the only way Android allows this;
+             the BIND permission is what stops anything else binding it. The
+             user must switch it on in system settings by hand — there is no
+             dialog for this one. Nothing read here is written to disk. -->
+        <service
+            android:name=".sense.NoticeListener"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
         <!-- Runs a few hundred bytes of update check, twice a day. -->
         <service
             android:name=".update.UpdateCheckJob"

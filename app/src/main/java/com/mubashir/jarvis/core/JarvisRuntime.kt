@@ -87,6 +87,7 @@ class JarvisRuntime(context: Context) : ComponentCallbacks2 {
             canReadContacts = contacts,
             canSeeLocation = granted(android.Manifest.permission.ACCESS_COARSE_LOCATION),
             canReadCalendar = granted(android.Manifest.permission.READ_CALENDAR),
+            canReadNotifications = com.mubashir.jarvis.sense.NoticeListener.allowed(app),
             remembers = true,
             brainIsRemote = settings.settings.value.brain == BrainChoice.Server,
         )

@@ -11,6 +11,9 @@ import android.telephony.SmsManager
 import android.os.BatteryManager
 import android.provider.AlarmClock
 import com.mubashir.jarvis.R
+import com.mubashir.jarvis.sense.NoticeBox
+import com.mubashir.jarvis.sense.NoticeListener
+import com.mubashir.jarvis.sense.NoticeWords
 import com.mubashir.jarvis.sense.Place
 import com.mubashir.jarvis.sense.PlaceWords
 import com.mubashir.jarvis.sense.Schedule
@@ -55,7 +58,7 @@ class ToolRunner(private val context: Context) {
             is Command.SendSms -> notYet(R.string.tool_no_messages)
             is Command.WhereAmI -> whereAmI()
             is Command.TodaySchedule -> todaySchedule()
-            is Command.ReadNotifications -> notYet(R.string.tool_no_notifications)
+            is Command.ReadNotifications -> readNotifications()
             is Command.SetAlarm -> notYet(R.string.tool_no_alarm)
 
             // Memory needs the store, which belongs to the runtime rather than
@@ -84,6 +87,21 @@ class ToolRunner(private val context: Context) {
         // coordinates still answer the question.
         val named = fix?.let { place.nameFor(it) }
         return ToolOutcome.Done(PlaceWords.describe(fix, named))
+    }
+
+    private fun readNotifications(): ToolOutcome {
+        if (!NoticeListener.allowed(context)) {
+            return ToolOutcome.NotYet(context.getString(R.string.tool_no_notifications))
+        }
+        // Allowed but not connected yet: Android binds the listener a moment
+        // after access is granted, and answering "nothing new" in that gap
+        // would be a lie rather than an answer.
+        if (!NoticeBox.listening.value) {
+            return ToolOutcome.NotYet(context.getString(R.string.notifications_starting))
+        }
+        return ToolOutcome.Done(
+            NoticeWords.describe(NoticeBox.notices.value, System.currentTimeMillis()),
+        )
     }
 
     private suspend fun todaySchedule(): ToolOutcome {
