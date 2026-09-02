@@ -635,7 +635,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         // A job rather than a question gets planned and carried out instead of
         // answered. Deliberately after the router: a single command is not a
         // job, and planning one would be slower and worse than just doing it.
-        if (AgentRules.looksLikeAGoal(prompt)) {
+        if (settings.settings.value.planJobs && AgentRules.looksLikeAGoal(prompt)) {
             pursue(prompt)
             return
         }
@@ -1197,6 +1197,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun forgetEverything() {
         viewModelScope.launch { memory.forgetEverything() }
     }
+
+    fun planJobs(): Boolean = settings.settings.value.planJobs
+
+    fun setPlanJobs(on: Boolean) = settings.setPlanJobs(on)
 
     fun wakeWord(): Boolean = settings.settings.value.wakeWord
 

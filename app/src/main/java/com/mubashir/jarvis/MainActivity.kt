@@ -262,6 +262,8 @@ private fun JarvisApp(openUpdates: Int = 0, woken: Int = 0, modifier: Modifier =
                         vm.setWakeWord(on)
                     }
                 },
+                planJobs = vm.planJobs(),
+                onSetPlanJobs = vm::setPlanJobs,
                 onInstallWakeModel = vm::installWakeModel,
                 onRemoveWakeModel = vm::removeWakeModel,
                 micGranted = micGranted,

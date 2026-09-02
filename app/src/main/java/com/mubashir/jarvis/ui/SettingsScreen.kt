@@ -85,6 +85,8 @@ fun SettingsScreen(
     onForgetEverything: () -> Unit,
     wakeWord: Boolean,
     onSetWakeWord: (Boolean) -> Unit,
+    planJobs: Boolean,
+    onSetPlanJobs: (Boolean) -> Unit,
     onInstallWakeModel: () -> Unit,
     onRemoveWakeModel: () -> Unit,
     micGranted: Boolean,
@@ -184,6 +186,22 @@ fun SettingsScreen(
                     Text(stringResource(R.string.action_open_settings))
                 }
             }
+        }
+
+        SettingsCard(title = stringResource(R.string.settings_agent)) {
+            SwitchRow(
+                label = stringResource(R.string.settings_plan_jobs),
+                detail = stringResource(R.string.settings_plan_jobs_detail),
+                checked = planJobs,
+                enabled = true,
+                onCheckedChange = onSetPlanJobs,
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = stringResource(R.string.settings_plan_jobs_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
         SettingsCard(title = stringResource(R.string.settings_memory)) {

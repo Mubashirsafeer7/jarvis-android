@@ -208,6 +208,10 @@
     <string name="mic_denied_body">Jarvis needs the microphone to listen. Android will not ask again, so it has to be turned on in the app\'s permissions.</string>
 
     <!-- The agent loop -->
+    <string name="settings_agent">Doing, not just answering</string>
+    <string name="settings_plan_jobs">Break jobs into steps</string>
+    <string name="settings_plan_jobs_detail">A job like "build me a landing page" is planned and carried out step by step, on screen. A question is still just answered.</string>
+    <string name="settings_plan_jobs_note">Calls and messages never happen inside a plan. Those stop and ask, exactly as they do now. The Stop button ends a plan at whatever step it has reached.</string>
     <string name="agent_planning">Working out how…</string>
     <string name="agent_no_answer">Nothing came back for that step.</string>
     <string name="agent_needs_you">Stopped at "%1$s" — that one needs you to confirm it.</string>

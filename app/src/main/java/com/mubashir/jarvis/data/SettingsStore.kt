@@ -30,6 +30,16 @@ data class Settings(
     /** Base URL of a server speaking the OpenAI chat format, e.g. http://100.x.y.z:8080 */
     val serverUrl: String = "",
     val serverModel: String = "",
+    /**
+     * Whether a job gets broken into steps and carried out, rather than
+     * answered.
+     *
+     * On by default, and switchable because the quality of a plan is the
+     * model's to decide and not this app's. A phone-sized model writes plans
+     * that are sometimes worth having and sometimes not, and there has to be a
+     * way to say "just answer me" without uninstalling anything.
+     */
+    val planJobs: Boolean = true,
     /** Whether a listener runs continuously waiting to hear the name. */
     val wakeWord: Boolean = false,
     /** Whether to be told in the notification shade when a newer build exists. */
@@ -62,6 +72,7 @@ class SettingsStore(context: Context) {
         }.getOrDefault(BrainChoice.Phone),
         serverUrl = prefs.getString(KEY_SERVER_URL, "").orEmpty(),
         serverModel = prefs.getString(KEY_SERVER_MODEL, "").orEmpty(),
+        planJobs = prefs.getBoolean(KEY_PLAN, true),
         wakeWord = prefs.getBoolean(KEY_WAKE, false),
         notifyUpdates = prefs.getBoolean(KEY_NOTIFY_UPDATES, true),
         lastNotifiedVersion = prefs.getLong(KEY_LAST_NOTIFIED, 0L),
@@ -80,6 +91,8 @@ class SettingsStore(context: Context) {
     fun setServerUrl(url: String) = update { it.copy(serverUrl = url.trim()) }
 
     fun setServerModel(model: String) = update { it.copy(serverModel = model.trim()) }
+
+    fun setPlanJobs(on: Boolean) = update { it.copy(planJobs = on) }
 
     fun setWakeWord(on: Boolean) = update { it.copy(wakeWord = on) }
 
@@ -101,6 +114,7 @@ class SettingsStore(context: Context) {
             .putString(KEY_BRAIN, next.brain.name)
             .putString(KEY_SERVER_URL, next.serverUrl)
             .putString(KEY_SERVER_MODEL, next.serverModel)
+            .putBoolean(KEY_PLAN, next.planJobs)
             .putBoolean(KEY_WAKE, next.wakeWord)
             .putBoolean(KEY_NOTIFY_UPDATES, next.notifyUpdates)
             .putLong(KEY_LAST_NOTIFIED, next.lastNotifiedVersion)
@@ -117,6 +131,7 @@ class SettingsStore(context: Context) {
         const val KEY_BRAIN = "brain"
         const val KEY_SERVER_URL = "server_url"
         const val KEY_SERVER_MODEL = "server_model"
+        const val KEY_PLAN = "plan_jobs"
         const val KEY_WAKE = "wake_word"
         const val KEY_NOTIFY_UPDATES = "notify_updates"
         const val KEY_LAST_NOTIFIED = "last_notified_version"
