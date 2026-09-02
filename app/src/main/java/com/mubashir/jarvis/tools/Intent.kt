@@ -28,6 +28,42 @@ sealed interface Command {
     data object WhatYouKnow : Command
 }
 
+/**
+ * What Android must have granted before this command can be carried out.
+ *
+ * Kept next to the commands rather than inside whatever runs them, so that
+ * adding a command with a permission and forgetting to ask for it is a visible
+ * omission in one place instead of a dead end the user meets at the moment they
+ * ask for something. "I need permission to read your calendar", with no way to
+ * grant it, is the same as not having built the feature.
+ */
+val Command.permissionsNeeded: List<String>
+    get() = when (this) {
+        is Command.Call -> listOf(
+            android.Manifest.permission.READ_CONTACTS,
+            android.Manifest.permission.CALL_PHONE,
+        )
+
+        is Command.SendSms -> listOf(
+            android.Manifest.permission.READ_CONTACTS,
+            android.Manifest.permission.SEND_SMS,
+        )
+
+        is Command.WhereAmI -> listOf(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+        is Command.TodaySchedule -> listOf(android.Manifest.permission.READ_CALENDAR)
+
+        is Command.Torch,
+        is Command.Battery,
+        is Command.Timer,
+        is Command.OpenApp,
+        is Command.SetAlarm,
+        is Command.ReadNotifications,
+        is Command.Remember,
+        is Command.Forget,
+        is Command.WhatYouKnow,
+        -> emptyList()
+    }
+
 /** True for anything that reaches the outside world and cannot be taken back. */
 val Command.needsConfirmation: Boolean
     get() = when (this) {

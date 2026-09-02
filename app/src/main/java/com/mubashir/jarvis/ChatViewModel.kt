@@ -22,6 +22,7 @@ import com.mubashir.jarvis.tools.ContactMatcher
 import com.mubashir.jarvis.tools.IntentRouter
 import com.mubashir.jarvis.tools.ToolOutcome
 import com.mubashir.jarvis.tools.needsConfirmation
+import com.mubashir.jarvis.tools.permissionsNeeded
 import com.mubashir.jarvis.model.InstalledModel
 import com.mubashir.jarvis.model.ModelSpec
 import com.mubashir.jarvis.agent.Agent
@@ -771,6 +772,15 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
             else -> Unit
         }
+        // Asked for at the moment it is first needed, and never up front. A
+        // command that reports "I need permission" with no way to grant it is
+        // the same as not having built the feature.
+        val missing = command.permissionsNeeded.filterNot(::granted)
+        if (missing.isNotEmpty()) {
+            askFor(missing, reasonFor(command))
+            return
+        }
+
         viewModelScope.launch {
             val outcome = runtime.tools.run(command)
             val spoken = when (outcome) {
@@ -826,6 +836,13 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 is ContactMatch.One -> confirm(found.contact, message)
             }
         }
+    }
+
+    /** Why this command needs what it is about to ask for, in the user's terms. */
+    private fun reasonFor(command: Command): Int = when (command) {
+        is Command.WhereAmI -> R.string.tool_no_location
+        is Command.TodaySchedule -> R.string.tool_no_calendar
+        else -> R.string.tool_no_contacts_permission
     }
 
     private fun granted(permission: String): Boolean =

@@ -45,6 +45,19 @@
         android:name="android.hardware.telephony"
         android:required="false" />
 
+    <!-- Answering "where am I" and "what is on today". Both are read-only, both
+         are asked for at the moment they are first needed rather than up front,
+         and neither is used for anything but answering the question. Coarse
+         location only: street-level accuracy is not needed to say which part of
+         town you are in, and asking for less is the honest default. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+
+    <!-- Location hardware is not required. Jarvis is still useful without it. -->
+    <uses-feature
+        android:name="android.hardware.location"
+        android:required="false" />
+
     <!-- Setting a timer through the phone's own clock app. -->
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
 

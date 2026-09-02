@@ -11,6 +11,11 @@ import android.telephony.SmsManager
 import android.os.BatteryManager
 import android.provider.AlarmClock
 import com.mubashir.jarvis.R
+import com.mubashir.jarvis.sense.Place
+import com.mubashir.jarvis.sense.PlaceWords
+import com.mubashir.jarvis.sense.Schedule
+import com.mubashir.jarvis.sense.ScheduleWords
+import java.time.LocalDateTime
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -48,8 +53,8 @@ class ToolRunner(private val context: Context) {
             // carried out through perform().
             is Command.Call -> notYet(R.string.tool_no_calls)
             is Command.SendSms -> notYet(R.string.tool_no_messages)
-            is Command.WhereAmI -> notYet(R.string.tool_no_location)
-            is Command.TodaySchedule -> notYet(R.string.tool_no_calendar)
+            is Command.WhereAmI -> whereAmI()
+            is Command.TodaySchedule -> todaySchedule()
             is Command.ReadNotifications -> notYet(R.string.tool_no_notifications)
             is Command.SetAlarm -> notYet(R.string.tool_no_alarm)
 
@@ -66,6 +71,26 @@ class ToolRunner(private val context: Context) {
     }
 
     private fun notYet(res: Int) = ToolOutcome.NotYet(context.getString(res))
+
+    private suspend fun whereAmI(): ToolOutcome {
+        val place = Place(context)
+        if (!place.canRead()) return ToolOutcome.NotYet(context.getString(R.string.tool_no_location))
+        if (place.switchedOff()) {
+            return ToolOutcome.Failed(context.getString(R.string.location_switched_off))
+        }
+        val fix = place.lastKnown()
+        // The name is looked up only when there is something to name, and its
+        // absence is not a failure — offline it is always absent, and the
+        // coordinates still answer the question.
+        val named = fix?.let { place.nameFor(it) }
+        return ToolOutcome.Done(PlaceWords.describe(fix, named))
+    }
+
+    private suspend fun todaySchedule(): ToolOutcome {
+        val schedule = Schedule(context)
+        if (!schedule.canRead()) return ToolOutcome.NotYet(context.getString(R.string.tool_no_calendar))
+        return ToolOutcome.Done(ScheduleWords.describe(schedule.today(), LocalDateTime.now()))
+    }
 
     /** Carries out an action the user has already confirmed on screen. */
     suspend fun perform(action: Action): ToolOutcome = withContext(Dispatchers.Default) {

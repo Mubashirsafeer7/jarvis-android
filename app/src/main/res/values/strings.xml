@@ -158,8 +158,9 @@
     <string name="cancelled">Cancelled.</string>
     <string name="tool_no_calls">I cannot place calls yet.</string>
     <string name="tool_no_messages">I cannot send messages yet.</string>
-    <string name="tool_no_location">I cannot check your location yet.</string>
-    <string name="tool_no_calendar">I cannot read your calendar yet.</string>
+    <string name="tool_no_location">I need permission to check your location.</string>
+    <string name="location_switched_off">Location is switched off on the phone, so there is nothing for me to read.</string>
+    <string name="tool_no_calendar">I need permission to read your calendar.</string>
     <string name="tool_no_notifications">I cannot read your notifications yet.</string>
     <string name="tool_no_alarm">I cannot set alarms yet.</string>
 

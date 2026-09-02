@@ -85,6 +85,8 @@ class JarvisRuntime(context: Context) : ComponentCallbacks2 {
             canCall = granted(android.Manifest.permission.CALL_PHONE),
             canMessage = granted(android.Manifest.permission.SEND_SMS),
             canReadContacts = contacts,
+            canSeeLocation = granted(android.Manifest.permission.ACCESS_COARSE_LOCATION),
+            canReadCalendar = granted(android.Manifest.permission.READ_CALENDAR),
             remembers = true,
             brainIsRemote = settings.settings.value.brain == BrainChoice.Server,
         )
