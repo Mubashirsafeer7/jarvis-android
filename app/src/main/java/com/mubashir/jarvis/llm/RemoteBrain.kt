@@ -26,7 +26,12 @@ import kotlin.coroutines.coroutineContext
 class RemoteBrain(
     private val baseUrl: () -> String,
     private val model: () -> String,
-    private val systemPrompt: String,
+    /**
+     * Read at each request, not captured once. What Jarvis can do changes when
+     * a permission is granted or a switch is flipped, and a brain on a server
+     * has no reason to wait for a model reload to hear about it.
+     */
+    private val systemPrompt: () -> String,
 ) : Brain {
 
     override val label: String
@@ -61,7 +66,7 @@ class RemoteBrain(
             .put(
                 "messages",
                 JSONArray()
-                    .put(JSONObject().put("role", "system").put("content", systemPrompt))
+                    .put(JSONObject().put("role", "system").put("content", systemPrompt()))
                     .put(JSONObject().put("role", "user").put("content", prompt)),
             )
             .toString()

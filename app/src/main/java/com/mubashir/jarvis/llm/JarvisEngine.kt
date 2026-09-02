@@ -31,11 +31,17 @@ class JarvisEngine(context: Context) {
     var loadedModelPath: String? = null
         private set
 
-    suspend fun load(model: File) {
+    /**
+     * @param abilities what Jarvis can do as of now, which the persona is built
+     *   from. Fixed for the life of the load: the engine only accepts a system
+     *   prompt immediately after a model is loaded, so a permission granted
+     *   later reaches the model on the next load rather than at once.
+     */
+    suspend fun load(model: File, abilities: Abilities = Abilities()) {
         if (loadedModelPath == model.absolutePath) return
         prepareToLoad()
         engine.loadModel(model.absolutePath)
-        engine.setSystemPrompt(SYSTEM_PROMPT)
+        engine.setSystemPrompt(Persona.systemPrompt(abilities))
         loadedModelPath = model.absolutePath
     }
 
@@ -128,45 +134,22 @@ class JarvisEngine(context: Context) {
 
     companion object {
         /** The persona, shared with any brain that answers on Jarvis's behalf. */
-        fun systemPrompt(): String = SYSTEM_PROMPT
+        fun systemPrompt(abilities: Abilities = Abilities()): String =
+            Persona.systemPrompt(abilities)
 
         // 512 cut long answers off mid-sentence.
         private const val DEFAULT_PREDICT = 1024
         private const val SETTLE_TIMEOUT_MS = 30_000L
         private const val MAX_PREP_ROUNDS = 4
 
-        // A 3B model writes far better English than Hinglish — asked for Hinglish
-        // it produced sentences that were not really any language. So it answers
-        // in English and still understands Hinglish questions.
+        // The persona is built from what is actually wired up, in Persona.
+        // It used to be a constant with the capability list typed into it, and
+        // that list went stale the moment anything was added — by the time
+        // contacts and memory worked it was still telling the model it had
+        // neither, so Jarvis denied things it had just done.
         //
-        // The boundary matters as much as the language. This list has to track
-        // what the tools actually do: it was written when nothing was wired up,
-        // and leaving it that way would have the model deny things it can now
-        // do. Commands themselves never reach the model — the router carries
-        // those out directly — but questions about them do, and the answer to
-        // "can you turn on the torch?" has to be true.
-        private const val SYSTEM_PROMPT = """You are Jarvis, a personal assistant running entirely on Mubashir's phone.
-
-How to answer:
-- Answer in English, even when the question is in Hindi, Urdu or Hinglish. You understand all of them.
-- Be brief: one or two sentences unless detail is asked for.
-- Plain text only. No markdown, no emoji, no bullet points.
-- If you do not know something, say so in one short sentence.
-
-What you can do on the phone, when asked directly:
-- Turn the torch on and off.
-- Say what the battery level is.
-- Set a timer.
-- Open an app by name.
-- Call someone in the contacts, or send them a message. Both are shown on screen
-  and confirmed by the user before anything happens.
-
-What you cannot do — say so plainly if asked, never pretend otherwise:
-- You cannot check location, read the calendar, or read notifications yet.
-- You cannot change other phone settings, or fix Wi-Fi, Bluetooth or connectivity.
-- You cannot search the internet, check the weather, or read live information. You are offline.
-- You cannot see the screen, the camera, files or contacts.
-
-You can talk, explain, translate, summarise, do arithmetic, and help the user think."""
+        // A 3B model writes far better English than Hinglish; asked for
+        // Hinglish it produced sentences that were not really any language. So
+        // it answers in English and still understands Hinglish questions.
     }
 }

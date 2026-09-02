@@ -218,7 +218,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 return@launch
             }
             _ui.update { it.copy(error = null) }
-            runCatching { engine.load(file) }
+            runCatching { engine.load(file, runtime.abilities()) }
                 .onSuccess {
                     _ui.update { it.copy(startingUp = false, loadedModel = file.name) }
                 }
@@ -524,7 +524,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         if (_ui.value.busy) return
         viewModelScope.launch {
             _ui.update { it.copy(busy = true, error = null, benchmark = null, busyMessage = R.string.busy_loading) }
-            runCatching { engine.load(model) }
+            runCatching { engine.load(model, runtime.abilities()) }
                 .onSuccess {
                     settings.setLastModelFile(model.name)
                     _ui.update { it.copy(busy = false, loadedModel = model.name) }
@@ -581,7 +581,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         }
 
         _ui.update { it.copy(busy = true, busyMessage = R.string.busy_reloading) }
-        val loaded = runCatching { engine.load(file) }
+        val loaded = runCatching { engine.load(file, runtime.abilities()) }
         _ui.update {
             it.copy(busy = false, loadedModel = if (loaded.isSuccess) file.name else null)
         }

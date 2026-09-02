@@ -7,6 +7,7 @@ import com.mubashir.jarvis.data.ChatStore
 import com.mubashir.jarvis.data.SettingsStore
 import com.mubashir.jarvis.data.BrainChoice
 import com.mubashir.jarvis.llm.Brain
+import com.mubashir.jarvis.llm.Abilities
 import com.mubashir.jarvis.llm.JarvisEngine
 import com.mubashir.jarvis.llm.LocalBrain
 import com.mubashir.jarvis.llm.RemoteBrain
@@ -65,8 +66,33 @@ class JarvisRuntime(context: Context) : ComponentCallbacks2 {
     private val remoteBrain = RemoteBrain(
         baseUrl = { settings.settings.value.serverUrl },
         model = { settings.settings.value.serverModel },
-        systemPrompt = JarvisEngine.systemPrompt(),
+        // Read at each request rather than captured once: a permission granted
+        // mid-session changes what Jarvis can do, and a server brain has no
+        // reason to wait for a model reload to hear about it.
+        systemPrompt = { JarvisEngine.systemPrompt(abilities()) },
     )
+
+    /**
+     * What Jarvis can actually do right now.
+     *
+     * Read from the permissions the system has granted and the switches the
+     * user has set, rather than from a list somebody remembered to update.
+     */
+    fun abilities(): Abilities {
+        val contacts = granted(android.Manifest.permission.READ_CONTACTS)
+        return Abilities(
+            phoneControl = settings.settings.value.phoneControl,
+            canCall = granted(android.Manifest.permission.CALL_PHONE),
+            canMessage = granted(android.Manifest.permission.SEND_SMS),
+            canReadContacts = contacts,
+            remembers = true,
+            brainIsRemote = settings.settings.value.brain == BrainChoice.Server,
+        )
+    }
+
+    private fun granted(permission: String) =
+        androidx.core.content.ContextCompat.checkSelfPermission(app, permission) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
 
     /** Whichever brain is selected right now. */
     val brain: Brain
