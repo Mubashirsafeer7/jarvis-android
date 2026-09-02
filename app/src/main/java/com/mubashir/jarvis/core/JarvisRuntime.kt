@@ -13,6 +13,14 @@ import com.mubashir.jarvis.llm.LocalBrain
 import com.mubashir.jarvis.llm.RemoteBrain
 import com.mubashir.jarvis.memory.MemoryStore
 import com.mubashir.jarvis.model.DownloadStore
+import com.mubashir.jarvis.routine.Moment
+import com.mubashir.jarvis.routine.Routine
+import com.mubashir.jarvis.routine.RoutineRules
+import com.mubashir.jarvis.routine.RoutineScheduler
+import com.mubashir.jarvis.routine.RoutineStore
+import com.mubashir.jarvis.tools.IntentRouter
+import com.mubashir.jarvis.tools.ToolOutcome
+import com.mubashir.jarvis.tools.needsConfirmation
 import com.mubashir.jarvis.sense.Senses
 import com.mubashir.jarvis.model.ModelManager
 import com.mubashir.jarvis.tools.Contacts
@@ -52,6 +60,7 @@ class JarvisRuntime(context: Context) : ComponentCallbacks2 {
     val memory = MemoryStore(app)
     val tools = ToolRunner(app)
     val senses = Senses(app)
+    val routines = RoutineStore(app)
     val contacts = Contacts(app)
     val updates = UpdateRepository(app)
     val installer = ApkInstaller(app)
@@ -62,6 +71,7 @@ class JarvisRuntime(context: Context) : ComponentCallbacks2 {
         // Read once, up front. Every prompt consults it, and a disk read on the
         // way to the model would put SQLite in the path of every message.
         scope.launch { memory.load() }
+        scope.launch { routines.load() }
     }
 
     private val localBrain = LocalBrain(engine)
@@ -73,6 +83,78 @@ class JarvisRuntime(context: Context) : ComponentCallbacks2 {
         // reason to wait for a model reload to hear about it.
         systemPrompt = { JarvisEngine.systemPrompt(abilities()) },
     )
+
+    /**
+     * Does whatever standing instruction is due, and tells the user.
+     *
+     * Called from a background job with no screen, which is what makes the
+     * order here matter: the routine is marked as run *before* the work starts,
+     * not after. If the work fails or the process is killed halfway, a missed
+     * briefing is a shrug — one that repeats every fifteen minutes until the
+     * phone is restarted is not.
+     *
+     * A routine does its work down the same path a typed message takes, so it
+     * can do anything Jarvis can do. The exception is anything that would reach
+     * the outside world: a routine never places a call or sends a message,
+     * because nobody is watching to confirm it.
+     */
+    /** Starts the periodic check when there is something to check, and not before. */
+    fun scheduleRoutinesIfAny(context: Context) {
+        scope.launch {
+            routines.load()
+            if (routines.routines.value.any { it.enabled }) {
+                RoutineScheduler.schedule(context)
+            } else {
+                RoutineScheduler.cancel(context)
+            }
+        }
+    }
+
+    suspend fun runDueRoutines() {
+        val stored = routines.allNow()
+        if (stored.none { it.enabled }) return
+
+        val situation = senses.now()
+        val moment = Moment(
+            now = situation.now,
+            batteryPercent = situation.batteryPercent,
+            charging = situation.charging,
+            nextAppointmentAt = situation.nextAppointment?.start,
+        )
+
+        stored.filter { RoutineRules.due(it, moment) }.forEach { routine ->
+            routines.markRun(routine.id, System.currentTimeMillis())
+            val said = carryOutRoutine(routine)
+            notifier.routineHappened(routine.what, said)
+        }
+    }
+
+    private suspend fun carryOutRoutine(routine: Routine): String {
+        val command = IntentRouter.route(routine.what)
+        return when {
+            // Never, from a background job with nobody watching. The whole
+            // reason these are confirmed on screen is that a machine should not
+            // be the last thing to decide them, and at eight in the morning it
+            // would be exactly that.
+            command != null && command.needsConfirmation ->
+                "That needs you to confirm it, so it is waiting."
+
+            command != null -> when (val outcome = tools.run(command)) {
+                is ToolOutcome.Done -> outcome.spoken
+                is ToolOutcome.NotYet -> outcome.spoken
+                is ToolOutcome.Failed -> outcome.spoken
+            }
+
+            else -> {
+                val answer = StringBuilder()
+                runCatching {
+                    brain.ask(routine.what, settings.settings.value.predictLength)
+                        .collect { answer.append(it) }
+                }
+                answer.toString().trim().ifEmpty { "Nothing came back." }
+            }
+        }
+    }
 
     /**
      * What Jarvis can actually do right now.

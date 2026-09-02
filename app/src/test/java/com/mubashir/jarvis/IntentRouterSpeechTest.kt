@@ -198,4 +198,50 @@ class IntentRouterSpeechTest {
         assertNull(IntentRouter.route("remember"))
         assertNull(IntentRouter.route("what is my brother's name"))
     }
+
+    @Test
+    fun `a standing instruction is recognised as one, not carried out now`() {
+        // The one that was silently broken: the routine check was written but
+        // never actually called, because the call site had changed shape since
+        // the edit was drafted. "every day at 8am turn the torch on" would have
+        // turned the torch on, once, immediately.
+        assertTrue(
+            IntentRouter.route("every day at 8am tell me the schedule") is Command.AddRoutine,
+        )
+        assertTrue(
+            IntentRouter.route("roz subah 8 baje mujhe schedule batao") is Command.AddRoutine,
+        )
+        assertTrue(
+            IntentRouter.route("when the battery is below 20 percent tell me")
+                is Command.AddRoutine,
+        )
+    }
+
+    @Test
+    fun `asking what the routines are is not setting one up`() {
+        assertEquals(Command.ListRoutines, IntentRouter.route("what are my routines"))
+        assertEquals(Command.ListRoutines, IntentRouter.route("meri routines batao"))
+    }
+
+    @Test
+    fun `a routine never swallows the one-off version of the same thing`() {
+        assertEquals(Command.TodaySchedule, IntentRouter.route("what is my schedule"))
+        assertEquals(Command.TodaySchedule, IntentRouter.route("aaj kya schedule hai"))
+        assertEquals(Command.Battery, IntentRouter.route("battery kitni hai"))
+        assertEquals(Command.Torch(on = true), IntentRouter.route("torch on"))
+        assertEquals(Command.Call("ali"), IntentRouter.route("ali ko call kardo"))
+    }
+
+    @Test
+    fun `the shade is asked about the way people ask`() {
+        assertEquals(Command.ReadNotifications, IntentRouter.route("what did I miss"))
+        assertEquals(Command.ReadNotifications, IntentRouter.route("what is new"))
+        assertEquals(Command.ReadNotifications, IntentRouter.route("read my notifications"))
+    }
+
+    @Test
+    fun `where and when are asked about too`() {
+        assertEquals(Command.WhereAmI, IntentRouter.route("mein kahan hu"))
+        assertEquals(Command.WhereAmI, IntentRouter.route("where am I"))
+    }
 }

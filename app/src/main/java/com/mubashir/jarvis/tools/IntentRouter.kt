@@ -33,6 +33,11 @@ object IntentRouter {
         // reads as though Jarvis was not listening properly.
         memory(text, tidied)?.let { return it }
 
+        // Before the rest, for the same reason memory is: "every day at 8am
+        // turn the torch on" is an instruction to set something up, and the
+        // torch patterns would happily read it as an instruction to do it now.
+        routines(text, tidied)?.let { return it }
+
         torch(text)?.let { return it }
         battery(text)?.let { return it }
         location(text)?.let { return it }
@@ -129,6 +134,29 @@ object IntentRouter {
         return cased.substring(range.first, range.last + 1)
     }
 
+    private val LIST_ROUTINES = Regex(
+        """^(?:what (?:are )?my routines|list (?:my )?routines|""" +
+            """(?:meri |mere )?routines? (?:kya hain|batao|dikhao)|""" +
+            """what do you do (?:by yourself|automatically))$"""
+    )
+
+    /** The shapes that mean a standing instruction rather than a one-off. */
+    private val ROUTINE_HINTS = listOf(
+        Regex("""^(?:every ?day|daily|each day|every weekday)\b"""),
+        Regex("""^at \S+ (?:every ?day|daily)\b"""),
+        Regex("""^(?:roz|har\s?roz|rozana)\b"""),
+        Regex("""^(?:when|if) (?:the )?battery\b"""),
+        Regex("""^battery \d{1,3}\b"""),
+    )
+
+    private fun routines(text: String, cased: String): Command? {
+        if (LIST_ROUTINES.matches(text)) return Command.ListRoutines
+        if (ROUTINE_HINTS.none { it.containsMatchIn(text) }) return null
+        // The words as written, because what a routine does is kept verbatim
+        // and shown back in settings.
+        return Command.AddRoutine(cased)
+    }
+
     private val TORCH_ON = listOf(
         // "jala do" is two words; matching only "jalado" missed how it is said.
         Regex("""^(?:turn |switch )?(?:the )?(?:torch|flashlight|light) (?:on|jala\s*(?:o|do|dein)?)$"""),
@@ -165,7 +193,9 @@ object IntentRouter {
     private fun schedule(text: String) = if (SCHEDULE.matches(text)) Command.TodaySchedule else null
 
     private val NOTIFICATIONS = Regex(
-        """^(?:read (?:my )?notifications|what(?:'s| is) new|(?:naye |new )?(?:messages|notifications)(?: padho| dikhao| batao)?)$"""
+        """^(?:read (?:my )?notifications|what(?:'s| is) new|""" +
+            """what did i miss|kya (?:kuch )?miss (?:hua|kiya)|""" +
+            """(?:naye |new )?(?:messages|notifications)(?: padho| dikhao| batao)?)$"""
     )
 
     private fun notifications(text: String) =

@@ -136,6 +136,12 @@
             </intent-filter>
         </service>
 
+        <!-- Wakes up every fifteen minutes and does whatever routine is due. -->
+        <service
+            android:name=".routine.RoutineCheckJob"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+
         <!-- Runs a few hundred bytes of update check, twice a day. -->
         <service
             android:name=".update.UpdateCheckJob"

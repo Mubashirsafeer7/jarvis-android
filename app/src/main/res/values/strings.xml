@@ -214,6 +214,18 @@
     <string name="mic_denied_title">Microphone blocked</string>
     <string name="mic_denied_body">Jarvis needs the microphone to listen. Android will not ask again, so it has to be turned on in the app\'s permissions.</string>
 
+    <!-- Routines -->
+    <string name="routine_channel">Routines</string>
+    <string name="routine_channel_detail">What your standing instructions did, when they did it.</string>
+    <string name="routine_not_understood">I understood you want a routine, but not what or when. Try "every day at 8am tell me today\'s schedule".</string>
+    <string name="routine_added">Done. %1$s</string>
+    <string name="routine_none">You have no routines yet. Try "every day at 8am tell me today\'s schedule".</string>
+    <string name="routine_removed">Routine removed.</string>
+    <string name="settings_routines">Routines</string>
+    <string name="settings_routines_detail">Things Jarvis does without being asked each time. Say "every day at 8am tell me today\'s schedule", or "when the battery is below 20 percent tell me".</string>
+    <string name="settings_routines_timing">Checked every fifteen minutes, which is Android\'s floor for background work — so a routine may happen a few minutes after its time. On realme, keep Jarvis excluded from battery optimisation or it will not happen at all.</string>
+    <string name="settings_routines_empty">Nothing standing yet.</string>
+
     <!-- The agent loop -->
     <string name="settings_agent">Doing, not just answering</string>
     <string name="settings_plan_jobs">Break jobs into steps</string>

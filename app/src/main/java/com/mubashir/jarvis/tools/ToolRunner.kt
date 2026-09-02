@@ -69,7 +69,9 @@ class ToolRunner(private val context: Context) {
             is Command.Remember,
             is Command.Forget,
             is Command.WhatYouKnow,
-            -> error("Memory commands are handled by the runtime, not the tool runner.")
+            is Command.AddRoutine,
+            is Command.ListRoutines,
+            -> error("Memory and routines are handled by the runtime, not the tool runner.")
         }
     }
 

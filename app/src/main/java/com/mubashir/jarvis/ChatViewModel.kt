@@ -32,6 +32,10 @@ import com.mubashir.jarvis.agent.StepOutcome
 import com.mubashir.jarvis.agent.asLines
 import com.mubashir.jarvis.llm.Persona
 import com.mubashir.jarvis.memory.Fact
+import com.mubashir.jarvis.routine.Routine
+import com.mubashir.jarvis.routine.RoutineRules
+import com.mubashir.jarvis.routine.RoutineScheduler
+import com.mubashir.jarvis.routine.RoutineSpeech
 import com.mubashir.jarvis.sense.NoticeListener
 import com.mubashir.jarvis.sense.SituationWords
 import com.mubashir.jarvis.memory.FactSource
@@ -110,6 +114,8 @@ data class UiState(
     val brainLabel: String = "",
     /** Everything Jarvis knows about its owner, newest first. */
     val facts: List<Fact> = emptyList(),
+    /** Standing instructions, in the order they were set up. */
+    val routines: List<Routine> = emptyList(),
     /** Whether the acoustic model that hears the name is installed, and how far along. */
     val wakeModel: WakeModelState = WakeModelState.Missing,
     /** Whether the listener is actually running right now. */
@@ -133,6 +139,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private val settings = runtime.settings
     private val chats = runtime.chats
     private val memory = runtime.memory
+    private val routines = runtime.routines
 
     /**
      * The loop that turns a goal into steps and carries them out.
@@ -191,6 +198,11 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         }
         viewModelScope.launch {
             memory.facts.collect { known -> _ui.update { it.copy(facts = known) } }
+        }
+        viewModelScope.launch {
+            routines.routines.collect { standing ->
+                _ui.update { it.copy(routines = standing) }
+            }
         }
         viewModelScope.launch {
             wakeModel.state.collect { state -> _ui.update { it.copy(wakeModel = state) } }
@@ -763,6 +775,16 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 return
             }
 
+            is Command.AddRoutine -> {
+                addRoutine(command.said)
+                return
+            }
+
+            is Command.ListRoutines -> {
+                sayRoutines()
+                return
+            }
+
             else -> Unit
         }
 
@@ -1156,6 +1178,60 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 is ToolOutcome.Failed -> StepOutcome.Failed(outcome.spoken)
             }
         }
+    }
+
+    // ---- Routines ---------------------------------------------------------
+
+    private fun addRoutine(said: String) {
+        val app = getApplication<Application>()
+        val parsed = RoutineSpeech.parse(said)
+        if (parsed == null) {
+            // Understood that a routine was wanted and not what it was. Saying
+            // so beats silently setting one up at a time nobody asked for.
+            say(app.getString(R.string.routine_not_understood))
+            return
+        }
+        viewModelScope.launch {
+            routines.add(parsed)
+            RoutineScheduler.schedule(app)
+            say(
+                app.getString(
+                    R.string.routine_added,
+                    RoutineRules.nextInWords(parsed, java.time.LocalDateTime.now()) +
+                        ", " + parsed.what,
+                ),
+            )
+        }
+    }
+
+    private fun sayRoutines() {
+        val app = getApplication<Application>()
+        val standing = routines.routines.value
+        if (standing.isEmpty()) {
+            say(app.getString(R.string.routine_none))
+            return
+        }
+        val now = java.time.LocalDateTime.now()
+        say(
+            standing.joinToString(". ") {
+                RoutineRules.nextInWords(it, now) + ", " + it.what
+            },
+        )
+    }
+
+    fun removeRoutine(routine: Routine) {
+        viewModelScope.launch {
+            routines.remove(routine.id)
+            // Nothing left to check. A periodic job that wakes the phone every
+            // fifteen minutes to find an empty list is a battery complaint.
+            if (routines.routines.value.isEmpty()) {
+                RoutineScheduler.cancel(getApplication())
+            }
+        }
+    }
+
+    fun setRoutineEnabled(routine: Routine, on: Boolean) {
+        viewModelScope.launch { routines.setEnabled(routine.id, on) }
     }
 
     // ---- Memory ----------------------------------------------------------

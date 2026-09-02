@@ -263,6 +263,8 @@ private fun JarvisApp(openUpdates: Int = 0, woken: Int = 0, modifier: Modifier =
                         vm.setWakeWord(on)
                     }
                 },
+                onRemoveRoutine = vm::removeRoutine,
+                onSetRoutineEnabled = vm::setRoutineEnabled,
                 noticesAllowed = vm.noticesAllowed(),
                 onOpenNoticeSettings = {
                     runCatching { context.startActivity(NoticeListener.settingsIntent()) }

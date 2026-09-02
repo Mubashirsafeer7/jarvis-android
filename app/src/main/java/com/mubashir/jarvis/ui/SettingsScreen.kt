@@ -43,8 +43,16 @@ import com.mubashir.jarvis.UpdateUi
 import androidx.compose.material3.OutlinedTextField
 import com.mubashir.jarvis.data.BrainChoice
 import com.mubashir.jarvis.data.Settings
+import androidx.compose.runtime.remember
 import com.mubashir.jarvis.memory.Fact
-import com.mubashir.jarvis.memory.FactSource
+import com.mubashir.jarvis.routine.Routine
+import com.mubashir.jarvis.routine.RoutineRules
+import java.time.LocalDateTime
+import androidx.compose.runtime.remember
+import com.mubashir.jarvis.memory.Fact
+import com.mubashir.jarvis.routine.Routine
+import com.mubashir.jarvis.routine.RoutineRules
+import java.time.LocalDateTimeSource
 import com.mubashir.jarvis.ui.theme.NumericStyle
 import com.mubashir.jarvis.voice.WakeModel
 import com.mubashir.jarvis.voice.WakeModelState
@@ -85,6 +93,8 @@ fun SettingsScreen(
     onForgetEverything: () -> Unit,
     wakeWord: Boolean,
     onSetWakeWord: (Boolean) -> Unit,
+    onRemoveRoutine: (Routine) -> Unit,
+    onSetRoutineEnabled: (Routine, Boolean) -> Unit,
     noticesAllowed: Boolean,
     onOpenNoticeSettings: () -> Unit,
     planJobs: Boolean,
@@ -188,6 +198,55 @@ fun SettingsScreen(
                     Text(stringResource(R.string.action_open_settings))
                 }
             }
+        }
+
+        SettingsCard(title = stringResource(R.string.settings_routines)) {
+            Text(
+                text = stringResource(R.string.settings_routines_detail),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(12.dp))
+
+            if (ui.routines.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.settings_routines_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            } else {
+                val now = remember { LocalDateTime.now() }
+                ui.routines.forEach { routine ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                text = RoutineRules.nextInWords(routine, now),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                            Text(
+                                text = routine.what,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Switch(
+                            checked = routine.enabled,
+                            onCheckedChange = { on -> onSetRoutineEnabled(routine, on) },
+                        )
+                        TextButton(onClick = { onRemoveRoutine(routine) }) {
+                            Text(stringResource(R.string.action_forget))
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = stringResource(R.string.settings_routines_timing),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
         SettingsCard(title = stringResource(R.string.settings_notices)) {

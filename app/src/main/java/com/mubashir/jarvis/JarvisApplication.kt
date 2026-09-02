@@ -22,6 +22,10 @@ class JarvisApplication : Application() {
         // Re-scheduling an identical job is a no-op, so this is safe on every
         // launch and is what keeps the check alive after an update replaces the
         // app.
+        // Rescheduled on every launch, because an update replaces the app and
+        // takes its jobs with it. Cheap: scheduling an identical job is a no-op.
+        runtime.scheduleRoutinesIfAny(this)
+
         if (runtime.settings.settings.value.notifyUpdates) {
             UpdateScheduler.schedule(this)
         } else {

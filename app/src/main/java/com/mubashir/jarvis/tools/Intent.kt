@@ -26,6 +26,12 @@ sealed interface Command {
 
     /** Say what is remembered. */
     data object WhatYouKnow : Command
+
+    /** Set up a standing instruction. */
+    data class AddRoutine(val said: String) : Command
+
+    /** Say what the standing instructions are. */
+    data object ListRoutines : Command
 }
 
 /**
@@ -61,6 +67,8 @@ val Command.permissionsNeeded: List<String>
         is Command.Remember,
         is Command.Forget,
         is Command.WhatYouKnow,
+        is Command.AddRoutine,
+        is Command.ListRoutines,
         -> emptyList()
     }
 
