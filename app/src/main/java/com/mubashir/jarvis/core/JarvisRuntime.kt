@@ -13,6 +13,7 @@ import com.mubashir.jarvis.llm.LocalBrain
 import com.mubashir.jarvis.llm.RemoteBrain
 import com.mubashir.jarvis.memory.MemoryStore
 import com.mubashir.jarvis.model.DownloadStore
+import com.mubashir.jarvis.sense.Senses
 import com.mubashir.jarvis.model.ModelManager
 import com.mubashir.jarvis.tools.Contacts
 import com.mubashir.jarvis.tools.ToolRunner
@@ -50,6 +51,7 @@ class JarvisRuntime(context: Context) : ComponentCallbacks2 {
     val chats = ChatStore(app)
     val memory = MemoryStore(app)
     val tools = ToolRunner(app)
+    val senses = Senses(app)
     val contacts = Contacts(app)
     val updates = UpdateRepository(app)
     val installer = ApkInstaller(app)

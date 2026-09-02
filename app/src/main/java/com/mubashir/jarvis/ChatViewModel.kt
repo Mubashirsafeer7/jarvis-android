@@ -33,6 +33,7 @@ import com.mubashir.jarvis.agent.asLines
 import com.mubashir.jarvis.llm.Persona
 import com.mubashir.jarvis.memory.Fact
 import com.mubashir.jarvis.sense.NoticeListener
+import com.mubashir.jarvis.sense.SituationWords
 import com.mubashir.jarvis.memory.FactSource
 import com.mubashir.jarvis.memory.MemoryNoticer
 import com.mubashir.jarvis.memory.MemoryRules
@@ -692,7 +693,15 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 // prompt, which the engine only accepts immediately after a
                 // model is loaded and so could never hold anything learned
                 // since.
-                val asked = MemoryRules.withContext(prompt, memory.facts.value)
+                // What Jarvis knows about him, and what is true right now.
+                // A person you ask for help already knows it is Wednesday
+                // afternoon and that your phone is nearly flat; an assistant
+                // that has to be told the time before it can answer a question
+                // about the time is not one.
+                val asked = SituationWords.withContext(
+                    MemoryRules.withContext(prompt, memory.facts.value),
+                    runtime.senses.now(),
+                )
                 runtime.brain.ask(asked, settings.settings.value.predictLength).collect { token ->
                     reply.append(token)
                     _ui.update { s -> s.copy(messages = s.messages.replaceLast(reply.toString(), true)) }
