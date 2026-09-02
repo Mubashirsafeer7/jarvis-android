@@ -6,6 +6,9 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.arm.aichat.InferenceEngine
 import com.mubashir.jarvis.data.BrainChoice
+import com.mubashir.jarvis.data.ChatHit
+import com.mubashir.jarvis.data.Conversation
+import com.mubashir.jarvis.data.ConversationWords
 import com.mubashir.jarvis.data.StoredMessage
 import com.mubashir.jarvis.update.AvailableUpdate
 import com.mubashir.jarvis.update.UpdateScheduler
@@ -116,6 +119,14 @@ data class UiState(
     val facts: List<Fact> = emptyList(),
     /** Standing instructions, in the order they were set up. */
     val routines: List<Routine> = emptyList(),
+    /** Every conversation, newest first. */
+    val conversations: List<Conversation> = emptyList(),
+    /** True while the search field is open. */
+    val searching: Boolean = false,
+    val searchQuery: String = "",
+    val searchHits: List<ChatHit> = emptyList(),
+    /** What the same search found in memory, which no chat app can offer. */
+    val searchFacts: List<Fact> = emptyList(),
     /** Whether the acoustic model that hears the name is installed, and how far along. */
     val wakeModel: WakeModelState = WakeModelState.Missing,
     /** Whether the listener is actually running right now. */
@@ -170,15 +181,14 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     val capabilities = runtime.capabilities
 
     private var listening: Job? = null
+    private var searchJob: Job? = null
 
     init {
         // The engine is process-scoped now, so a model loaded before this screen
         // existed is still loaded — reflect that rather than showing setup again.
-        val restored = chats.load().map { ChatMessage(it.fromUser, it.text) }
         _ui.update {
             it.copy(
                 loadedModel = engine.loadedModelPath?.let { path -> File(path).name },
-                messages = restored,
                 speakReplies = settings.settings.value.speakReplies,
                 // Set here, before the first frame is drawn, and not inside
                 // reloadLastModel where it used to be. That set it after a disk
@@ -189,6 +199,14 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     settings.settings.value.lastModelFile != null,
             )
         }
+        // Reading the conversation now touches SQLite, so it happens off the
+        // main thread and the screen paints without it. The first frame shows
+        // an empty conversation for a moment, which is what it showed before
+        // anyway on a cold start.
+        viewModelScope.launch {
+            chats.load()
+            _ui.update { it.copy(messages = openMessages()) }
+        }
         refreshInstalled()
         resumePendingDownload()
         reloadLastModel()
@@ -198,6 +216,9 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         }
         viewModelScope.launch {
             memory.facts.collect { known -> _ui.update { it.copy(facts = known) } }
+        }
+        viewModelScope.launch {
+            chats.conversations.collect { all -> _ui.update { it.copy(conversations = all) } }
         }
         viewModelScope.launch {
             routines.routines.collect { standing ->
@@ -339,16 +360,94 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     fun predictLength(): Int = settings.settings.value.predictLength
 
-    /** Forgets the conversation, on the screen and on disk. */
+    /** Forgets every conversation, on the screen and on disk. */
     fun clearChat() {
-        chats.clear()
-        _ui.update { it.copy(messages = emptyList()) }
+        viewModelScope.launch {
+            chats.clearEverything()
+            _ui.update { it.copy(messages = emptyList(), searchHits = emptyList()) }
+        }
     }
 
     fun clearBenchmark() = _ui.update { it.copy(benchmark = null) }
 
     private fun persistChat() {
-        chats.save(_ui.value.messages.map { StoredMessage(it.fromUser, it.text) })
+        val messages = _ui.value.messages.map { StoredMessage(it.fromUser, it.text) }
+        viewModelScope.launch { chats.save(messages) }
+    }
+
+    // ---- Conversations ----------------------------------------------------
+
+    private suspend fun openMessages(): List<ChatMessage> =
+        chats.messages(chats.openId.value).map { ChatMessage(it.fromUser, it.text) }
+
+    /**
+     * Leaves what is there and starts somewhere new.
+     *
+     * Nothing is deleted: the conversation stays in the list, which is the
+     * whole point of there being a list. Until now "new" and "delete
+     * everything" were the same button.
+     */
+    fun newConversation() {
+        stopGenerating()
+        chats.startNew()
+        _ui.update { it.copy(messages = emptyList(), searching = false, searchQuery = "") }
+    }
+
+    fun openConversation(conversation: Conversation) {
+        viewModelScope.launch {
+            stopGenerating()
+            chats.open(conversation.id)
+            _ui.update {
+                it.copy(
+                    messages = openMessages(),
+                    searching = false,
+                    searchQuery = "",
+                    searchHits = emptyList(),
+                )
+            }
+        }
+    }
+
+    fun removeConversation(conversation: Conversation) {
+        viewModelScope.launch {
+            val wasOpen = chats.openId.value == conversation.id
+            chats.remove(conversation.id)
+            if (wasOpen) _ui.update { it.copy(messages = emptyList()) }
+            if (_ui.value.searchQuery.isNotBlank()) search(_ui.value.searchQuery)
+        }
+    }
+
+    fun setSearching(on: Boolean) {
+        _ui.update {
+            it.copy(
+                searching = on,
+                searchQuery = if (on) it.searchQuery else "",
+                searchHits = if (on) it.searchHits else emptyList(),
+            )
+        }
+    }
+
+    /**
+     * Searches conversations and memory at once.
+     *
+     * Memory is included because it is the thing an ordinary chat app cannot
+     * do: searching "ali" should turn up what Jarvis knows about him, not only
+     * the times his name was typed.
+     */
+    fun search(query: String) {
+        _ui.update { it.copy(searchQuery = query) }
+        searchJob?.cancel()
+        if (query.isBlank()) {
+            _ui.update { it.copy(searchHits = emptyList(), searchFacts = emptyList()) }
+            return
+        }
+        searchJob = viewModelScope.launch {
+            val hits = chats.search(query)
+            val facts = memory.facts.value.filter {
+                ConversationWords.matches(query, it.text)
+            }
+            _ui.update { it.copy(searchHits = hits, searchFacts = facts) }
+        }
     }
 
     /** Listens for one utterance and sends it as a prompt. */
