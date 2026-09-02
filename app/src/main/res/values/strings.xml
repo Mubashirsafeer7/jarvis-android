@@ -207,6 +207,11 @@
     <string name="mic_denied_title">Microphone blocked</string>
     <string name="mic_denied_body">Jarvis needs the microphone to listen. Android will not ask again, so it has to be turned on in the app\'s permissions.</string>
 
+    <!-- The agent loop -->
+    <string name="agent_planning">Working out how…</string>
+    <string name="agent_no_answer">Nothing came back for that step.</string>
+    <string name="agent_needs_you">Stopped at "%1$s" — that one needs you to confirm it.</string>
+
     <!-- Memory -->
     <string name="memory_kept">Noted: %1$s</string>
     <string name="memory_nothing_to_keep">There was nothing in that worth keeping.</string>

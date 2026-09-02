@@ -21,8 +21,15 @@ import com.mubashir.jarvis.tools.ContactMatch
 import com.mubashir.jarvis.tools.ContactMatcher
 import com.mubashir.jarvis.tools.IntentRouter
 import com.mubashir.jarvis.tools.ToolOutcome
+import com.mubashir.jarvis.tools.needsConfirmation
 import com.mubashir.jarvis.model.InstalledModel
 import com.mubashir.jarvis.model.ModelSpec
+import com.mubashir.jarvis.agent.Agent
+import com.mubashir.jarvis.agent.AgentEvent
+import com.mubashir.jarvis.agent.AgentRules
+import com.mubashir.jarvis.agent.StepOutcome
+import com.mubashir.jarvis.agent.asLines
+import com.mubashir.jarvis.llm.Persona
 import com.mubashir.jarvis.memory.Fact
 import com.mubashir.jarvis.memory.FactSource
 import com.mubashir.jarvis.memory.MemoryNoticer
@@ -123,6 +130,21 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private val settings = runtime.settings
     private val chats = runtime.chats
     private val memory = runtime.memory
+
+    /**
+     * The loop that turns a goal into steps and carries them out.
+     *
+     * A step is carried out down exactly the same path a typed message takes:
+     * the router first, the brain second. So a step costs nothing new, behaves
+     * as the user already expects, and anything the router cannot do falls
+     * through to the model rather than failing.
+     */
+    private val agent = Agent(
+        brain = { runtime.brain },
+        carryOut = ::carryOutStep,
+        predictLength = { settings.settings.value.predictLength },
+        toolsOnOffer = { runtime.abilities().let { Persona.canDo(it).map { line -> line.text } } },
+    )
     private val wakeModel = runtime.wakeModel
     private val micLevel = MicLevel()
 
@@ -610,6 +632,14 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
         // A server brain needs no model on the phone, so readiness is the
         // brain's question rather than the model list's.
+        // A job rather than a question gets planned and carried out instead of
+        // answered. Deliberately after the router: a single command is not a
+        // job, and planning one would be slower and worse than just doing it.
+        if (AgentRules.looksLikeAGoal(prompt)) {
+            pursue(prompt)
+            return
+        }
+
         // A server brain needs nothing on the phone. A phone brain needs either a
         // model in memory or one on disk it can pick back up.
         if (settings.settings.value.brain == BrainChoice.Phone &&
@@ -978,6 +1008,128 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun canInstallUpdates(): Boolean = runtime.installer.canInstall()
 
     // ---- Wake word -------------------------------------------------------
+
+    // ---- The agent loop ---------------------------------------------------
+
+    /** Takes on a goal: plans it, then works through the plan out loud. */
+    private fun pursue(goal: String) {
+        _ui.update {
+            it.copy(
+                messages = it.messages + ChatMessage(true, goal) +
+                    ChatMessage(false, "", streaming = true),
+                generating = true,
+                error = null,
+            )
+        }
+
+        generation = viewModelScope.launch {
+            val app = getApplication<Application>()
+            try {
+                if (!ensureModelLoaded()) {
+                    _ui.update { st ->
+                        st.copy(
+                            messages = st.messages.dropLast(1),
+                            generating = false,
+                            error = app.getString(R.string.error_no_model),
+                        )
+                    }
+                    return@launch
+                }
+
+                agent.pursue(goal).collect { event ->
+                    // One message rewritten in place rather than a new bubble
+                    // per step. A plan is one thing happening, and eight
+                    // bubbles arriving one at a time buries the conversation
+                    // it was part of.
+                    val shown = when (event) {
+                        is AgentEvent.Planning -> app.getString(R.string.agent_planning)
+                        is AgentEvent.Planned -> event.plan.asLines()
+                        is AgentEvent.Progress -> event.plan.asLines()
+                        is AgentEvent.Finished ->
+                            event.plan.asLines() + "\n\n" + event.summary
+                        is AgentEvent.Stopped ->
+                            event.plan.asLines() + "\n\n" + event.why
+                        is AgentEvent.JustAnAnswer -> event.reply
+                    }
+                    val stillGoing = event is AgentEvent.Planning ||
+                        event is AgentEvent.Planned ||
+                        event is AgentEvent.Progress
+                    _ui.update { st ->
+                        st.copy(messages = st.messages.replaceLast(shown, stillGoing))
+                    }
+
+                    if (!stillGoing && _ui.value.speakReplies) {
+                        // Only the outcome is read aloud. Reading eight steps
+                        // out is not an assistant, it is a dictation.
+                        speaker.speak(
+                            when (event) {
+                                is AgentEvent.Finished -> event.summary
+                                is AgentEvent.Stopped -> event.why
+                                is AgentEvent.JustAnAnswer -> event.reply
+                                else -> ""
+                            },
+                        )
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                _ui.update { it.copy(error = describeFailure(e)) }
+            }
+            _ui.update { it.copy(generating = false) }
+            persistChat()
+        }
+    }
+
+    /**
+     * Carries out one step of a plan.
+     *
+     * A call or a message never happens inside a loop, however clearly the plan
+     * asked for it. Those are the two things that cannot be taken back, and the
+     * whole reason they are confirmed on screen is that a machine should not be
+     * the last thing to decide them. The plan pauses and asks instead.
+     */
+    private suspend fun carryOutStep(what: String): StepOutcome {
+        val command = IntentRouter.route(what)
+        val app = getApplication<Application>()
+
+        return when {
+            command == null -> {
+                // Nothing the router knows. The brain answers the step, and its
+                // answer becomes the step's result.
+                val answer = StringBuilder()
+                runtime.brain.ask(
+                    MemoryRules.withContext(what, memory.facts.value),
+                    settings.settings.value.predictLength,
+                ).collect { answer.append(it) }
+                val said = answer.toString().trim()
+                if (said.isEmpty()) StepOutcome.Failed(app.getString(R.string.agent_no_answer))
+                else StepOutcome.Done(said)
+            }
+
+            command.needsConfirmation ->
+                StepOutcome.NeedsUser(app.getString(R.string.agent_needs_you, what))
+
+            command is Command.Remember -> {
+                memory.remember(command.what, FactSource.Told)
+                StepOutcome.Done(app.getString(R.string.memory_kept, command.what))
+            }
+
+            command is Command.Forget -> {
+                val gone = memory.forget(command.what)
+                StepOutcome.Done(app.getString(R.string.memory_forgot, gone))
+            }
+
+            command is Command.WhatYouKnow ->
+                StepOutcome.Done(memory.facts.value.joinToString(". ") { it.text })
+
+            else -> when (val outcome = runtime.tools.run(command)) {
+                is ToolOutcome.Done -> StepOutcome.Done(outcome.spoken)
+                is ToolOutcome.NotYet -> StepOutcome.Failed(outcome.spoken)
+                is ToolOutcome.Failed -> StepOutcome.Failed(outcome.spoken)
+            }
+        }
+    }
 
     // ---- Memory ----------------------------------------------------------
 

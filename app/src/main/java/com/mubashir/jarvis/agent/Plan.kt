@@ -34,3 +34,28 @@ data class Plan(
         },
     )
 }
+
+/**
+ * The plan as the user reads it while it runs.
+ *
+ * One message that is rewritten in place rather than a new message per step:
+ * a plan is one thing happening, and eight bubbles arriving one at a time
+ * buries the conversation it was part of.
+ */
+fun Plan.asLines(): String = steps.joinToString("\n") { step ->
+    val mark = when (step.state) {
+        StepState.Waiting -> "·"
+        StepState.Running -> "▸"
+        StepState.Done -> "✓"
+        StepState.Failed -> "✗"
+        StepState.Skipped -> "–"
+    }
+    val line = "$mark ${step.number}. ${step.what}"
+    // The result of a step is shown under it, indented, so a plan reads as a
+    // record of what happened rather than a list of what was intended.
+    if (step.state == StepState.Done && !step.result.isNullOrBlank()) {
+        "$line\n    ${step.result}"
+    } else {
+        line
+    }
+}
