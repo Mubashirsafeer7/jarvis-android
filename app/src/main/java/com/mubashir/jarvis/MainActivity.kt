@@ -252,6 +252,8 @@ private fun JarvisApp(openUpdates: Int = 0, woken: Int = 0, modifier: Modifier =
                 onSetKeepRescueCopy = vm::setKeepRescueCopy,
                 phoneControl = vm.phoneControl(),
                 onSetPhoneControl = vm::setPhoneControl,
+                onForgetFact = vm::forgetFact,
+                onForgetEverything = vm::forgetEverything,
                 wakeWord = vm.wakeWord(),
                 onSetWakeWord = { on ->
                     if (on && !micGranted) {

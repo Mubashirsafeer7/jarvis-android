@@ -4,6 +4,7 @@ import com.mubashir.jarvis.tools.Command
 import com.mubashir.jarvis.tools.IntentRouter
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -140,5 +141,61 @@ class IntentRouterSpeechTest {
         assertNull(IntentRouter.route("   "))
         assertNull(IntentRouter.route("."))
         assertNull(IntentRouter.route("..."))
+    }
+
+    @Test
+    fun `remembering is asked for in either language`() {
+        assertEquals(
+            Command.Remember("my brother is called Ali"),
+            IntentRouter.route("remember that my brother is called Ali"),
+        )
+        assertEquals(
+            Command.Remember("mera bhai Ali hai"),
+            IntentRouter.route("yaad rakho ke mera bhai Ali hai"),
+        )
+        assertEquals(
+            Command.Remember("mera bhai Ali hai"),
+            IntentRouter.route("mera bhai Ali hai yaad rakho"),
+        )
+        assertEquals(
+            Command.Remember("mera VPS ka kaam pending hai"),
+            IntentRouter.route("note karo mera VPS ka kaam pending hai"),
+        )
+    }
+
+    @Test
+    fun `a remembered fact keeps the capitals it was written with`() {
+        // Matching happens on flattened text, but a fact is read aloud and
+        // shown in settings. "my brother is called ali" reads as though Jarvis
+        // had not been listening properly.
+        val remembered = IntentRouter.route("remember that my brother is called Ali")
+        assertTrue((remembered as Command.Remember).what.contains("Ali"))
+    }
+
+    @Test
+    fun `forgetting is asked for in either language`() {
+        assertEquals(Command.Forget("my brother"), IntentRouter.route("forget about my brother"))
+        assertEquals(Command.Forget("ali"), IntentRouter.route("forget what you know about ali"))
+        assertEquals(Command.Forget("mera bhai"), IntentRouter.route("bhool jao mera bhai"))
+    }
+
+    @Test
+    fun `asking what is known is recognised`() {
+        assertEquals(Command.WhatYouKnow, IntentRouter.route("what do you know about me"))
+        assertEquals(
+            Command.WhatYouKnow,
+            IntentRouter.route("tumhe mere baare mein kya pata hai"),
+        )
+        assertEquals(Command.WhatYouKnow, IntentRouter.route("kya kya yaad hai"))
+    }
+
+    @Test
+    fun `remembering does not swallow other commands`() {
+        // "remember" runs before the call patterns on purpose, so it has to be
+        // strict about what it claims.
+        assertEquals(Command.Call("ali"), IntentRouter.route("ali ko call karo"))
+        assertEquals(Command.Torch(on = true), IntentRouter.route("torch on"))
+        assertNull(IntentRouter.route("remember"))
+        assertNull(IntentRouter.route("what is my brother's name"))
     }
 }

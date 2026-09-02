@@ -17,6 +17,15 @@ sealed interface Command {
     data object WhereAmI : Command
     data object TodaySchedule : Command
     data object ReadNotifications : Command
+
+    /** Commit something to memory, because the user said so outright. */
+    data class Remember(val what: String) : Command
+
+    /** Drop what is known about something. */
+    data class Forget(val what: String) : Command
+
+    /** Say what is remembered. */
+    data object WhatYouKnow : Command
 }
 
 /** True for anything that reaches the outside world and cannot be taken back. */

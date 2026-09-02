@@ -52,6 +52,16 @@ class ToolRunner(private val context: Context) {
             is Command.TodaySchedule -> notYet(R.string.tool_no_calendar)
             is Command.ReadNotifications -> notYet(R.string.tool_no_notifications)
             is Command.SetAlarm -> notYet(R.string.tool_no_alarm)
+
+            // Memory needs the store, which belongs to the runtime rather than
+            // to a stateless tool runner. Listed rather than swept into an else
+            // so that adding a command here is a compile error until somebody
+            // decides where it is handled — which is how these three were
+            // caught.
+            is Command.Remember,
+            is Command.Forget,
+            is Command.WhatYouKnow,
+            -> error("Memory commands are handled by the runtime, not the tool runner.")
         }
     }
 

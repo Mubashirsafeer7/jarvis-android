@@ -20,8 +20,18 @@ import java.util.Locale
 object IntentRouter {
 
     fun route(input: String): Command? {
-        val text = normalise(input)
+        val tidied = tidy(input)
+        val text = tidied.lowercase(Locale.ROOT)
         if (text.isEmpty()) return null
+
+        // Before everything else. "remember to call ali at five" is a thing to
+        // write down, not an instruction to dial anybody — and the call
+        // patterns would happily have read it as one.
+        //
+        // Given both spellings: matching wants the lowercase one, but a fact is
+        // read aloud and shown in settings, and "my brother is called ali"
+        // reads as though Jarvis was not listening properly.
+        memory(text, tidied)?.let { return it }
 
         torch(text)?.let { return it }
         battery(text)?.let { return it }
@@ -43,8 +53,10 @@ object IntentRouter {
      * to the whole line, so any one of those made the command silently miss and
      * fall through to the model — "torch on." did nothing at all.
      */
-    private fun normalise(input: String): String = input
-        .lowercase(Locale.ROOT)
+    private fun normalise(input: String): String = tidy(input).lowercase(Locale.ROOT)
+
+    /** Everything [normalise] does except flattening the case. */
+    private fun tidy(input: String): String = input
         .replace(SPACES, " ")
         .trim()
         .replace(TRAILING_PUNCTUATION, "")
@@ -65,6 +77,57 @@ object IntentRouter {
     private const val KHOL = """khol\s*(?:o|do|ein|dein)"""
     private const val LAGA = """laga\s*(?:o|do|dein)"""
     private const val BHEJ = """bhej\s*(?:o|do|dein)"""
+
+    private val REMEMBER = listOf(
+        Regex("""^(?:please )?remember (?:that |this[:,]? )?(.+)$"""),
+        Regex("""^(?:yaad|yad) (?:rakh(?:o|na|lo|lena|iye)?|karlo) (?:ke |ki )?(.+)$"""),
+        Regex("""^(?:note|likh) (?:kar\s*(?:o|lo|do)|karo|lo) (?:ke |ki )?(.+)$"""),
+        Regex("""^(.+?) (?:yaad|yad) rakh(?:o|na|lo|lena|iye)$"""),
+    )
+
+    private val FORGET = listOf(
+        Regex("""^forget (?:about |that |what you know about )?(.+)$"""),
+        Regex("""^(?:bhool|bhul) ja(?:o|na|iye) (.+)$"""),
+        Regex("""^(.+?) (?:bhool|bhul) ja(?:o|na|iye)$"""),
+    )
+
+    private val WHAT_YOU_KNOW = Regex(
+        """^(?:what do you (?:know|remember)(?: about me| about us)?|""" +
+            """what have you remembered|""" +
+            """(?:tumhe|tumko|tume) (?:mere baare mein |mere bare mein )?kya (?:pata|yaad) hai|""" +
+            """kya kya yaad hai|memory (?:dikhao|batao|kya hai))$"""
+    )
+
+    private fun memory(text: String, cased: String): Command? {
+        if (WHAT_YOU_KNOW.matches(text)) return Command.WhatYouKnow
+
+        for (pattern in FORGET) {
+            val what = pattern.matchEntire(text)?.groupValues?.get(1)?.trim().orEmpty()
+            if (what.isNotEmpty()) return Command.Forget(what)
+        }
+        for (pattern in REMEMBER) {
+            val match = pattern.matchEntire(text) ?: continue
+            val what = asWritten(match, cased, text).trim()
+            // One word is a mishearing, not a fact worth keeping.
+            if (what.length > 2 && what.contains(' ')) return Command.Remember(what)
+        }
+        return null
+    }
+
+    /**
+     * The matched group as the user actually wrote it.
+     *
+     * Matching happens on the flattened text, so the group's range indexes that
+     * — and lowercasing is character-for-character for everything this will
+     * ever see. Where it is not, the flattened text is still correct, only
+     * uglier, so the length check falls back rather than slicing at the wrong
+     * place.
+     */
+    private fun asWritten(match: MatchResult, cased: String, lowered: String): String {
+        val range = match.groups[1]?.range ?: return ""
+        if (cased.length != lowered.length) return match.groupValues[1]
+        return cased.substring(range.first, range.last + 1)
+    }
 
     private val TORCH_ON = listOf(
         // "jala do" is two words; matching only "jalado" missed how it is said.

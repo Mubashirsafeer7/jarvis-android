@@ -207,6 +207,24 @@
     <string name="mic_denied_title">Microphone blocked</string>
     <string name="mic_denied_body">Jarvis needs the microphone to listen. Android will not ask again, so it has to be turned on in the app\'s permissions.</string>
 
+    <!-- Memory -->
+    <string name="memory_kept">Noted: %1$s</string>
+    <string name="memory_nothing_to_keep">There was nothing in that worth keeping.</string>
+    <string name="memory_forgot">Forgotten. %1$d thing removed.</string>
+    <string name="memory_nothing_known">I do not know anything about %1$s.</string>
+    <string name="memory_knows_nothing">I do not know anything about you yet. Say "remember that…" and I will.</string>
+    <string name="memory_knows_more">%1$s. And %2$d more, in Settings.</string>
+    <string name="settings_memory">Memory</string>
+    <string name="settings_memory_detail">What Jarvis knows about you. It travels with every message, so it can answer without being told twice. Nothing here leaves the phone.</string>
+    <string name="settings_memory_empty">Nothing yet. Say "remember that my brother is called Ali", or just talk — Jarvis picks up facts on its own.</string>
+    <string name="settings_memory_told">You told it</string>
+    <string name="settings_memory_noticed">It noticed</string>
+    <string name="settings_memory_forget_all">Forget everything</string>
+    <string name="settings_memory_forget_all_title">Forget everything?</string>
+    <string name="settings_memory_forget_all_body">Every fact Jarvis knows about you is deleted. This cannot be undone, and it will not learn them back on its own.</string>
+    <string name="settings_memory_count">%1$d remembered</string>
+    <string name="action_forget">Forget</string>
+
     <string name="busy_reloading">Picking the model back up…</string>
     <string name="error_no_model">No model is loaded yet. Pick one in Settings → Models, or switch the brain to a server.</string>
 

@@ -10,6 +10,7 @@ import com.mubashir.jarvis.llm.Brain
 import com.mubashir.jarvis.llm.JarvisEngine
 import com.mubashir.jarvis.llm.LocalBrain
 import com.mubashir.jarvis.llm.RemoteBrain
+import com.mubashir.jarvis.memory.MemoryStore
 import com.mubashir.jarvis.model.DownloadStore
 import com.mubashir.jarvis.model.ModelManager
 import com.mubashir.jarvis.tools.Contacts
@@ -46,12 +47,19 @@ class JarvisRuntime(context: Context) : ComponentCallbacks2 {
     val downloads = DownloadStore(app)
     val settings = SettingsStore(app)
     val chats = ChatStore(app)
+    val memory = MemoryStore(app)
     val tools = ToolRunner(app)
     val contacts = Contacts(app)
     val updates = UpdateRepository(app)
     val installer = ApkInstaller(app)
     val notifier = UpdateNotifier(app)
     val capabilities = DeviceCapabilities.read(app)
+
+    init {
+        // Read once, up front. Every prompt consults it, and a disk read on the
+        // way to the model would put SQLite in the path of every message.
+        scope.launch { memory.load() }
+    }
 
     private val localBrain = LocalBrain(engine)
     private val remoteBrain = RemoteBrain(

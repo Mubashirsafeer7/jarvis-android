@@ -15,7 +15,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -27,6 +29,10 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -37,6 +43,8 @@ import com.mubashir.jarvis.UpdateUi
 import androidx.compose.material3.OutlinedTextField
 import com.mubashir.jarvis.data.BrainChoice
 import com.mubashir.jarvis.data.Settings
+import com.mubashir.jarvis.memory.Fact
+import com.mubashir.jarvis.memory.FactSource
 import com.mubashir.jarvis.ui.theme.NumericStyle
 import com.mubashir.jarvis.voice.WakeModel
 import com.mubashir.jarvis.voice.WakeModelState
@@ -73,6 +81,8 @@ fun SettingsScreen(
     onSetKeepRescueCopy: (Boolean) -> Unit,
     phoneControl: Boolean,
     onSetPhoneControl: (Boolean) -> Unit,
+    onForgetFact: (Fact) -> Unit,
+    onForgetEverything: () -> Unit,
     wakeWord: Boolean,
     onSetWakeWord: (Boolean) -> Unit,
     onInstallWakeModel: () -> Unit,
@@ -91,6 +101,33 @@ fun SettingsScreen(
     onAllowInstalls: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // Everything Jarvis knows, gone at once, is the one destructive thing on
+    // this screen. It asks first.
+    var forgetAllAsked by rememberSaveable { mutableStateOf(false) }
+    if (forgetAllAsked) {
+        AlertDialog(
+            onDismissRequest = { forgetAllAsked = false },
+            title = { Text(stringResource(R.string.settings_memory_forget_all_title)) },
+            text = { Text(stringResource(R.string.settings_memory_forget_all_body)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    forgetAllAsked = false
+                    onForgetEverything()
+                }) {
+                    Text(
+                        text = stringResource(R.string.settings_memory_forget_all),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { forgetAllAsked = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+
     Column(
         modifier
             .fillMaxSize()
@@ -145,6 +182,69 @@ fun SettingsScreen(
                 )
                 TextButton(onClick = onOpenVoiceSettings) {
                     Text(stringResource(R.string.action_open_settings))
+                }
+            }
+        }
+
+        SettingsCard(title = stringResource(R.string.settings_memory)) {
+            Text(
+                text = stringResource(R.string.settings_memory_detail),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(12.dp))
+
+            if (ui.facts.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.settings_memory_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            } else {
+                Text(
+                    text = stringResource(R.string.settings_memory_count, ui.facts.size),
+                    style = NumericStyle,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(Modifier.height(8.dp))
+
+                // Grouped by where a fact came from, because the two deserve
+                // different trust. What the owner said outright is not up for
+                // question; what Jarvis worked out from a conversation is, and
+                // it should be obvious at a glance which is which.
+                listOf(
+                    FactSource.Told to R.string.settings_memory_told,
+                    FactSource.Noticed to R.string.settings_memory_noticed,
+                ).forEach { (source, label) ->
+                    val group = ui.facts.filter { it.source == source }
+                    if (group.isEmpty()) return@forEach
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = stringResource(label),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    group.forEach { fact ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = fact.text,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.weight(1f),
+                            )
+                            TextButton(onClick = { onForgetFact(fact) }) {
+                                Text(stringResource(R.string.action_forget))
+                            }
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(4.dp))
+                TextButton(onClick = { forgetAllAsked = true }) {
+                    Text(
+                        text = stringResource(R.string.settings_memory_forget_all),
+                        color = MaterialTheme.colorScheme.error,
+                    )
                 }
             }
         }

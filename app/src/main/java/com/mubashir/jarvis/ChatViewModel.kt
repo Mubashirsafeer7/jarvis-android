@@ -23,6 +23,10 @@ import com.mubashir.jarvis.tools.IntentRouter
 import com.mubashir.jarvis.tools.ToolOutcome
 import com.mubashir.jarvis.model.InstalledModel
 import com.mubashir.jarvis.model.ModelSpec
+import com.mubashir.jarvis.memory.Fact
+import com.mubashir.jarvis.memory.FactSource
+import com.mubashir.jarvis.memory.MemoryNoticer
+import com.mubashir.jarvis.memory.MemoryRules
 import com.mubashir.jarvis.voice.MicLevel
 import com.mubashir.jarvis.voice.SentenceSplitter
 import com.mubashir.jarvis.voice.VoiceInput
@@ -94,6 +98,8 @@ data class UiState(
     val update: UpdateUi = UpdateUi.Idle,
     /** What is doing the thinking, for the header. */
     val brainLabel: String = "",
+    /** Everything Jarvis knows about its owner, newest first. */
+    val facts: List<Fact> = emptyList(),
     /** Whether the acoustic model that hears the name is installed, and how far along. */
     val wakeModel: WakeModelState = WakeModelState.Missing,
     /** Whether the listener is actually running right now. */
@@ -116,6 +122,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private val voice = runtime.voice
     private val settings = runtime.settings
     private val chats = runtime.chats
+    private val memory = runtime.memory
     private val wakeModel = runtime.wakeModel
     private val micLevel = MicLevel()
 
@@ -156,6 +163,9 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         refreshBrainLabel()
         viewModelScope.launch {
             speaker.speaking.collect { on -> _ui.update { it.copy(speaking = on) } }
+        }
+        viewModelScope.launch {
+            memory.facts.collect { known -> _ui.update { it.copy(facts = known) } }
         }
         viewModelScope.launch {
             wakeModel.state.collect { state -> _ui.update { it.copy(wakeModel = state) } }
@@ -644,7 +654,14 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     }
                     return@launch
                 }
-                runtime.brain.ask(prompt, settings.settings.value.predictLength).collect { token ->
+                // What is shown in the bubble is what the user typed. What is
+                // sent also carries whatever Jarvis knows that bears on it —
+                // riding along with the message rather than in the system
+                // prompt, which the engine only accepts immediately after a
+                // model is loaded and so could never hold anything learned
+                // since.
+                val asked = MemoryRules.withContext(prompt, memory.facts.value)
+                runtime.brain.ask(asked, settings.settings.value.predictLength).collect { token ->
                     reply.append(token)
                     _ui.update { s -> s.copy(messages = s.messages.replaceLast(reply.toString(), true)) }
 
@@ -675,6 +692,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             persistChat()
+            noticeFacts(prompt)
         }
     }
 
@@ -686,6 +704,27 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 error = null,
             )
         }
+        // Memory is answered here rather than in the tool runner, which is
+        // stateless by design and has no store to write to.
+        when (command) {
+            is Command.Remember -> {
+                rememberFact(command.what)
+                return
+            }
+
+            is Command.Forget -> {
+                forgetAbout(command.what)
+                return
+            }
+
+            is Command.WhatYouKnow -> {
+                sayWhatIsKnown()
+                return
+            }
+
+            else -> Unit
+        }
+
         // A call or a message cannot be taken back, so neither happens straight
         // from a command. Both resolve to a real person first and are then
         // spelled out on screen for confirmation.
@@ -940,6 +979,73 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- Wake word -------------------------------------------------------
 
+    // ---- Memory ----------------------------------------------------------
+
+    /** Writes something down because the user said so outright. */
+    private fun rememberFact(what: String) {
+        viewModelScope.launch {
+            val stored = memory.remember(what, FactSource.Told)
+            val app = getApplication<Application>()
+            say(
+                if (stored == null) app.getString(R.string.memory_nothing_to_keep)
+                else app.getString(R.string.memory_kept, stored.text),
+            )
+        }
+    }
+
+    private fun forgetAbout(what: String) {
+        viewModelScope.launch {
+            val gone = memory.forget(what)
+            val app = getApplication<Application>()
+            say(
+                if (gone == 0) app.getString(R.string.memory_nothing_known, what)
+                else app.getString(R.string.memory_forgot, gone),
+            )
+        }
+    }
+
+    private fun sayWhatIsKnown() {
+        val known = memory.facts.value
+        val app = getApplication<Application>()
+        if (known.isEmpty()) {
+            say(app.getString(R.string.memory_knows_nothing))
+            return
+        }
+        // Spoken as well as shown, so the answer works with the screen off.
+        // Capped because reading forty facts aloud is not an answer.
+        val listed = known.take(MEMORY_SPOKEN_LIMIT).joinToString(". ") { it.text }
+        val more = known.size - MEMORY_SPOKEN_LIMIT
+        say(
+            if (more > 0) app.getString(R.string.memory_knows_more, listed, more)
+            else listed,
+        )
+    }
+
+    /**
+     * Picks up facts the user stated in passing.
+     *
+     * After the answer rather than before it, so nothing about remembering
+     * stands between a question and its reply. Nothing is said about it either
+     * — announcing every fact it noticed would make ordinary conversation feel
+     * like filling in a form. Settings is where they can be seen and removed.
+     */
+    private fun noticeFacts(said: String) {
+        viewModelScope.launch {
+            MemoryNoticer.notice(said).forEach { fact ->
+                memory.remember(fact, FactSource.Noticed)
+            }
+        }
+    }
+
+    /** Everything Jarvis knows, for the settings screen. */
+    fun forgetFact(fact: Fact) {
+        viewModelScope.launch { memory.forgetOne(fact.id) }
+    }
+
+    fun forgetEverything() {
+        viewModelScope.launch { memory.forgetEverything() }
+    }
+
     fun wakeWord(): Boolean = settings.settings.value.wakeWord
 
     /**
@@ -1022,5 +1128,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     private companion object {
         const val BYTES_PER_GB = 1_073_741_824.0
+
+        /** Reading forty facts aloud is not an answer to "what do you know". */
+        const val MEMORY_SPOKEN_LIMIT = 6
     }
 }
